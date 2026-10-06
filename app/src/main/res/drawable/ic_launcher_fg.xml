@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Twin racing stripes -->
+    <path android:fillColor="#14161A" android:pathData="M40,18 L48,18 L48,90 L40,90 Z" />
+    <path android:fillColor="#14161A" android:pathData="M60,18 L68,18 L68,90 L60,90 Z" />
+    <!-- Play mark in a yellow knockout -->
+    <path android:fillColor="#FFC72C" android:pathData="M54,30 A24,24 0,1 1,53.99 30 Z" />
+    <path android:fillColor="#14161A" android:pathData="M47,42 L66,54 L47,66 Z" />
+</vector>

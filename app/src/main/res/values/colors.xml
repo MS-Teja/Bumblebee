@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#07090C</color>
+    <color name="surface1">#0FFFFFFF</color>
+    <color name="surface2">#1AFFFFFF</color>
+    <color name="surface3">#24FFFFFF</color>
+    <color name="hairline">#14FFFFFF</color>
+    <color name="text_primary">#F7F8FA</color>
+    <color name="text_secondary">#ADFFFFFF</color>
+    <color name="text_tertiary">#73FFFFFF</color>
+    <color name="accent_fallback">#FFC72C</color>
+    <color name="bee_yellow">#FFC72C</color>
+    <color name="ok">#5BD68A</color>
+    <color name="warn">#FFB547</color>
+    <color name="bad">#FF6B6B</color>
+</resources>
