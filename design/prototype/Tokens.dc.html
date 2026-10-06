@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bumblebee — Tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@600;800&amp;family=Sora:wght@600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090C}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 720px; overflow: hidden; background: #07090C; font-family: 'Manrope', sans-serif; color: #F7F8FA; padding: 36px 44px; box-sizing: border-box; display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 40px">
+
+  <section>
+    <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">TYPE · MANROPE</div>
+    <div style="margin-top: 14px; font-size: 52px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.04">Display 52</div>
+    <div style="font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.45)">Now Playing title · 66 in glance</div>
+    <div style="margin-top: 14px; font-size: 36px; font-weight: 800; letter-spacing: -0.02em">Headline 36</div>
+    <div style="margin-top: 10px; font-size: 26px; font-weight: 700; color: #FF8FB0">Artist 26 · accent</div>
+    <div style="margin-top: 10px; font-size: 20px; font-weight: 700">Row title 20 SemiBold</div>
+    <div style="margin-top: 6px; font-size: 17px; font-weight: 600; color: rgba(255,255,255,0.62)">Body / secondary 17 · 62% white</div>
+    <div style="margin-top: 10px; font-size: 15px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">LABEL 15 · CAPS · +14%</div>
+    <div style="margin-top: 10px; font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums">8:50 · clock 18 · 60% (small on purpose)</div>
+
+    <div style="margin-top: 26px; font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">ALTERNATES CONSIDERED</div>
+    <div style="display: flex; gap: 22px; margin-top: 10px; align-items: baseline">
+      <span style="font-size: 30px; font-weight: 800">Manrope ✓</span>
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 30px; font-weight: 800; color: rgba(255,255,255,0.55)">Jakarta</span>
+      <span style="font-family: 'Sora', sans-serif; font-size: 30px; font-weight: 800; color: rgba(255,255,255,0.55)">Sora</span>
+    </div>
+    <div style="margin-top: 6px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.45)">Manrope: big x-height, open shapes, 36 KB per weight</div>
+  </section>
+
+  <section>
+    <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">BASE</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px">
+      <div style="height: 70px; border-radius: 16px; background: #07090C; box-shadow: 0 0 0 1px rgba(255,255,255,0.12) inset; padding: 10px 12px; box-sizing: border-box; font-size: 13px; font-weight: 700">bg<br><span style="color: rgba(255,255,255,0.5)">#07090C</span></div>
+      <div style="height: 70px; border-radius: 16px; background: rgba(255,255,255,0.06); padding: 10px 12px; box-sizing: border-box; font-size: 13px; font-weight: 700">surface 1<br><span style="color: rgba(255,255,255,0.5)">white 6%</span></div>
+      <div style="height: 70px; border-radius: 16px; background: rgba(255,255,255,0.10); padding: 10px 12px; box-sizing: border-box; font-size: 13px; font-weight: 700">surface 2<br><span style="color: rgba(255,255,255,0.5)">white 10%</span></div>
+      <div style="height: 70px; border-radius: 16px; background: #FFC72C; color: #0B0C0F; padding: 10px 12px; box-sizing: border-box; font-size: 13px; font-weight: 800">Bee yellow<br><span style="color: rgba(11,12,15,0.65)">#FFC72C · fallback</span></div>
+    </div>
+
+    <div style="margin-top: 22px; font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">ACCENT FROM ART</div>
+    <sc-for list="{{accents}}" as="a" hint-placeholder-count="4">
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px">
+        <div style="flex: 0 0 52px; width: 52px; height: 52px; border-radius: 12px; background: linear-gradient(140deg, {{a.c1}} 0%, {{a.c2}} 100%)"></div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+        <div style="flex: 0 0 52px; width: 52px; height: 52px; border-radius: 50%; background: {{a.accent}}"></div>
+        <div style="flex: 0 0 52px; width: 52px; height: 52px; border-radius: 12px; background: {{a.deep}}; box-shadow: 0 0 0 1px rgba(255,255,255,0.1) inset"></div>
+        <div style="font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55)">accent ≥4.5:1 · deep</div>
+      </div>
+    </sc-for>
+  </section>
+
+  <section>
+    <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">MOTION</div>
+    <sc-for list="{{motion}}" as="m" hint-placeholder-count="6">
+      <div style="display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,0.07)">
+        <span style="font-size: 16px; font-weight: 700">{{m.name}}</span>
+        <span style="font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.55); text-align: right">{{m.spec}}</span>
+      </div>
+    </sc-for>
+
+    <div style="margin-top: 22px; font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">TOUCH TARGETS</div>
+    <div style="display: flex; align-items: flex-end; gap: 14px; margin-top: 14px">
+      <div style="text-align: center"><div style="width: 96px; height: 96px; border-radius: 50%; background: #FF8FB0"></div><div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55)">Play 144</div></div>
+      <div style="text-align: center"><div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(255,255,255,0.12)"></div><div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55)">Skip 100</div></div>
+      <div style="text-align: center"><div style="width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.12)"></div><div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55)">Toggle 60</div></div>
+      <div style="text-align: center"><div style="width: 84px; height: 52px; border-radius: 14px; background: rgba(255,255,255,0.08)"></div><div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.55)">Row 76</div></div>
+    </div>
+    <div style="margin-top: 8px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.4)">px at 1280×720; shown at ⅔ scale</div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      accents: [
+        { c1: '#3B2A7A', c2: '#E2557B', accent: '#FF8FB0', deep: '#1E0F33' },
+        { c1: '#0E5E6F', c2: '#F2C14E', accent: '#FFD45C', deep: '#082A31' },
+        { c1: '#8A1C14', c2: '#F08A24', accent: '#FFA24D', deep: '#2E0B07' },
+        { c1: '#1B4FBF', c2: '#7FD3FF', accent: '#8AD0FF', deep: '#0A1A42' }
+      ],
+      motion: [
+        { name: 'Track change', spec: 'spring 320ms, overshoot · colour 400ms' },
+        { name: 'Swipe commit', spec: '>30% width or >1000 px/s' },
+        { name: 'Enter glance', spec: '400ms fade · buttons ×1.12 in place' },
+        { name: 'Exit glance', spec: '250ms (you are reaching)' },
+        { name: 'Folder in / out', spec: 'shared axis X, 32px, 220ms' },
+        { name: 'Press', spec: 'scale 0.92 spring · instant' },
+        { name: 'Reduce motion', spec: 'everything → 150ms fade' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

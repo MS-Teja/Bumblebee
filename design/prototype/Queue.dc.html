@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bumblebee — Queue</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090C}
+a{color:#F7F8FA;text-decoration:none}a:hover{color:#FFFFFF}
+button{font-family:inherit}
+@keyframes eqA{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 720px; overflow: hidden; background: #1E0F33; font-family: 'Manrope', sans-serif; color: #F7F8FA; user-select: none; -webkit-user-select: none">
+  <!-- Now Playing behind the sheet -->
+  <div style="position: absolute; left: -260px; top: -220px; width: 1000px; height: 1000px; border-radius: 50%; background: #E2557B; opacity: 0.30; filter: blur(140px)"></div>
+  <div style="position: absolute; left: 48px; top: 108px; width: 504px; height: 504px; border-radius: 30px; background: linear-gradient(140deg, #3B2A7A 0%, #E2557B 100%)"></div>
+  <div style="position: absolute; left: 620px; top: 190px; font-size: 52px; font-weight: 800">Samajavaragamana</div>
+  <!-- Frosted scrim: the ambient art under a heavier tint, no real blur -->
+  <div style="position: absolute; inset: 0; background: rgba(9,8,16,0.72)"></div>
+
+  <!-- Sheet -->
+  <section aria-label="Queue" style="position: absolute; left: 40px; right: 172px; top: 56px; bottom: 0; border-radius: 34px 34px 0 0; background: linear-gradient(180deg, rgba(48,28,74,0.96) 0%, rgba(16,13,26,0.98) 40%); box-shadow: 0 -20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07) inset; display: flex; flex-direction: column; padding: 0 30px">
+    <a href="Main.dc.html" aria-label="Close queue" style="display: block; align-self: center; width: 120px; padding: 14px 0 6px">
+      <div style="width: 64px; height: 6px; margin: 0 auto; border-radius: 99px; background: rgba(255,255,255,0.3)"></div>
+    </a>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 64px">
+      <div>
+        <span style="font-size: 30px; font-weight: 800">Up next</span>
+        <span style="margin-left: 12px; font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.55)">{{countLabel}} · Road Trip</span>
+      </div>
+      <button type="button" onClick="{{clearUpcoming}}" style="height: 56px; padding: 0 24px; border-radius: 28px; border: none; cursor: pointer; background: rgba(255,255,255,0.08); color: #F7F8FA; font-size: 17px; font-weight: 800">Clear upcoming</button>
+    </div>
+
+    <!-- Pinned current -->
+    <div style="display: flex; align-items: center; gap: 16px; height: 84px; margin-top: 6px; padding: 0 18px; border-radius: 22px; background: rgba(255,143,176,0.14)">
+      <div style="position: relative; flex: 0 0 60px; width: 60px; height: 60px; border-radius: 14px; overflow: hidden; background: linear-gradient(140deg, #3B2A7A 0%, #E2557B 100%)"></div>
+      <div style="flex: 1 1 auto; min-width: 0">
+        <div style="font-size: 13px; font-weight: 800; letter-spacing: 0.14em; color: #FF8FB0">NOW PLAYING</div>
+        <div style="font-size: 21px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Samajavaragamana <span style="color: rgba(255,255,255,0.55); font-weight: 600">· Sid Sriram</span></div>
+      </div>
+      <span style="display: inline-flex; align-items: flex-end; gap: 3px; height: 20px">
+        <span style="width: 4px; height: 20px; border-radius: 2px; background: #FF8FB0; transform-origin: bottom; animation: eqA 0.9s ease-in-out infinite"></span>
+        <span style="width: 4px; height: 20px; border-radius: 2px; background: #FF8FB0; transform-origin: bottom; animation: eqA 0.9s ease-in-out -0.3s infinite"></span>
+        <span style="width: 4px; height: 20px; border-radius: 2px; background: #FF8FB0; transform-origin: bottom; animation: eqA 0.9s ease-in-out -0.6s infinite"></span>
+      </span>
+    </div>
+
+    <div style="position: relative; flex: 1 1 auto; min-height: 0; margin-top: 10px; overflow: hidden">
+      <sc-for list="{{rows}}" as="row" hint-placeholder-count="6">
+        <div style="position: relative; height: 76px; z-index: {{row.z}}">
+          <div style="position: absolute; inset: 4px 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 26px; border-radius: 20px; background: rgba(255,107,107,0.22); color: #FF8A8A; font-size: 16px; font-weight: 800; letter-spacing: 0.08em; opacity: {{row.removeOpacity}}">REMOVE</div>
+          <div style="position: absolute; inset: 4px 0; display: flex; align-items: center; gap: 16px; padding: 0 6px 0 16px; border-radius: 20px; background: {{row.bg}}; box-shadow: {{row.shadow}}; transform: translate({{row.dx}}px, {{row.dy}}px) scale({{row.scale}}); transition: {{row.transition}}; touch-action: pan-y" onPointerDown="{{row.down}}" onPointerMove="{{row.move}}" onPointerUp="{{row.up}}" onPointerCancel="{{row.up}}">
+            <div style="position: relative; flex: 0 0 52px; width: 52px; height: 52px; border-radius: 12px; overflow: hidden; background: linear-gradient(140deg, {{row.c1}} 0%, {{row.c2}} 100%)"></div>
+            <div style="flex: 1 1 auto; min-width: 0">
+              <div style="font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{row.title}}</div>
+              <div style="font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{row.artist}}</div>
+            </div>
+            <div style="font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.45); font-variant-numeric: tabular-nums">{{row.time}}</div>
+            <div aria-label="Drag to reorder" style="width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.55); cursor: grab; touch-action: none" onPointerDown="{{row.handleDown}}">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14"></path></svg>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{hasUndo}}" hint-placeholder-val="{{false}}">
+      <div style="position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; padding: 8px 8px 8px 24px; border-radius: 99px; background: #F7F8FA; color: #07090C; box-shadow: 0 10px 30px rgba(0,0,0,0.4)">
+        <span style="font-size: 17px; font-weight: 700; white-space: nowrap">{{undoText}}</span>
+        <button type="button" onClick="{{undo}}" style="height: 52px; padding: 0 22px; border-radius: 26px; border: none; cursor: pointer; background: #07090C; color: #FFC72C; font-size: 17px; font-weight: 800">Undo</button>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+const Q_SONGS = [
+  { id: 1, title: 'Hooked on a Feeling', artist: 'Blue Swede', time: '2:52', c1: '#1D3557', c2: '#E76F51' },
+  { id: 2, title: 'Butta Bomma', artist: 'Armaan Malik', time: '3:17', c1: '#0E5E6F', c2: '#F2C14E' },
+  { id: 3, title: 'Naatu Naatu', artist: 'Rahul Sipligunj, Kaala Bhairava', time: '3:34', c1: '#8A1C14', c2: '#F08A24' },
+  { id: 4, title: 'Life Is a Highway', artist: 'Tom Cochrane', time: '4:26', c1: '#264653', c2: '#2A9D8F' },
+  { id: 5, title: 'Mr. Blue Sky', artist: 'Electric Light Orchestra', time: '5:03', c1: '#1B4FBF', c2: '#7FD3FF' },
+  { id: 6, title: 'Inkem Inkem Inkem Kaavaale', artist: 'Sid Sriram', time: '4:19', c1: '#4A1942', c2: '#C33C54' },
+  { id: 7, title: 'Don’t Stop Me Now', artist: 'Queen', time: '3:29', c1: '#5C3D00', c2: '#FFC72C' }
+];
+const Q_ROW = 76;
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { items: Q_SONGS.slice(), mode: '', active: -1, dx: 0, dy: 0, settling: false, removed: null, total: 41 };
+    this.g = null;
+  }
+  componentWillUnmount() { clearTimeout(this.tu); clearTimeout(this.ts); }
+
+  settle(after) {
+    this.setState({ settling: true, dx: 0, dy: 0 });
+    clearTimeout(this.ts);
+    this.ts = setTimeout(() => { this.setState({ settling: false, active: -1, mode: '' }); if (after) after(); }, 280);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const rows = s.items.map((it, i) => {
+      const act = s.active === i;
+      const lifting = act && s.mode === 'move';
+      const swiping = act && s.mode === 'swipe';
+      return Object.assign({}, it, {
+        dx: swiping ? s.dx : 0,
+        dy: lifting ? s.dy : 0,
+        scale: lifting ? 1.03 : 1,
+        z: act ? 5 : 1,
+        bg: lifting ? '#2A1F3D' : (swiping ? '#1A1424' : 'transparent'),
+        shadow: lifting ? '0 16px 36px rgba(0,0,0,0.5)' : 'none',
+        transition: act && !s.settling ? 'none' : 'transform 280ms cubic-bezier(.22,1.12,.36,1)',
+        removeOpacity: swiping ? Math.min(1, -s.dx / 90) : 0,
+        down: (e) => {
+          const el = e.currentTarget;
+          const r = el.getBoundingClientRect();
+          this.g = { i, kind: 'swipe', x: e.clientX, y: e.clientY, id: e.pointerId, claimed: false, el, scale: r.width / el.offsetWidth || 1 };
+        },
+        handleDown: (e) => {
+          e.stopPropagation();
+          const el = e.currentTarget.parentNode;
+          const r = el.getBoundingClientRect();
+          this.g = { i, kind: 'move', x: e.clientX, y: e.clientY, id: e.pointerId, claimed: true, el, scale: r.width / el.offsetWidth || 1 };
+          try { el.setPointerCapture(e.pointerId); } catch (err) {}
+          this.setState({ active: i, mode: 'move', dy: 0, settling: false });
+        },
+        move: (e) => {
+          const g = this.g;
+          if (!g || g.id !== e.pointerId) return;
+          const mx = (e.clientX - g.x) / g.scale;
+          const my = (e.clientY - g.y) / g.scale;
+          if (g.kind === 'move') { this.setState({ dy: my }); return; }
+          if (!g.claimed) {
+            if (mx < -20 && -mx > Math.abs(my) * 1.7) {
+              g.claimed = true;
+              try { g.el.setPointerCapture(e.pointerId); } catch (err) {}
+            } else return;
+          }
+          this.setState({ active: g.i, mode: 'swipe', dx: Math.min(0, mx), settling: false });
+        },
+        up: () => {
+          const g = this.g;
+          this.g = null;
+          if (!g || !g.claimed) return;
+          if (g.kind === 'move') {
+            const st = this.state;
+            const to = Math.max(0, Math.min(st.items.length - 1, g.i + Math.round(st.dy / Q_ROW)));
+            const items = st.items.slice();
+            const [m] = items.splice(g.i, 1);
+            items.splice(to, 0, m);
+            this.setState({ items, active: -1, mode: '', dy: 0, settling: false });
+            return;
+          }
+          if (this.state.dx < -150) {
+            const items = this.state.items.slice();
+            const [gone] = items.splice(g.i, 1);
+            this.setState({ items, active: -1, mode: '', dx: 0, removed: { item: gone, at: g.i }, total: this.state.total - 1 });
+            clearTimeout(this.tu);
+            this.tu = setTimeout(() => this.setState({ removed: null }), 4000);
+          } else {
+            this.settle();
+          }
+        }
+      });
+    });
+    return {
+      rows,
+      countLabel: s.total + ' songs',
+      hasUndo: !!s.removed,
+      undoText: s.removed ? 'Removed “' + s.removed.item.title + '”' : '',
+      undo: () => {
+        const r = this.state.removed;
+        if (!r) return;
+        const items = this.state.items.slice();
+        items.splice(r.at, 0, r.item);
+        this.setState({ items, removed: null, total: this.state.total + 1 });
+      },
+      clearUpcoming: () => this.setState({ items: [], total: 1, removed: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

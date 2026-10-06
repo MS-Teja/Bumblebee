@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bumblebee — Now Playing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090C}
+a{color:#F7F8FA;text-decoration:none}a:hover{color:#FFFFFF}
+button{font-family:inherit}
+@keyframes beePulse{0%,80%,100%{transform:scale(1.12)}88%{transform:scale(1.2)}}
+@keyframes beeFlick{0%{opacity:.2}8%{opacity:1}12%{opacity:.4}18%{opacity:1}100%{opacity:1}}
+@keyframes eqA{0%,100%{height:6px}50%{height:18px}}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 720px; overflow: hidden; background: #07090C; font-family: 'Manrope', sans-serif; color: #F7F8FA; user-select: none; -webkit-user-select: none">
+
+  <!-- Ambient backdrop: album-tinted, blurred, vignetted, grained -->
+  <div style="position: absolute; inset: 0; background: {{t.deep}}; transition: background 500ms ease"></div>
+  <div style="position: absolute; left: -260px; top: -220px; width: 1000px; height: 1000px; border-radius: 50%; background: {{t.c2}}; opacity: 0.30; filter: blur(140px); transition: background 500ms ease"></div>
+  <div style="position: absolute; right: -300px; bottom: -380px; width: 900px; height: 900px; border-radius: 50%; background: {{t.c1}}; opacity: 0.45; filter: blur(150px); transition: background 500ms ease"></div>
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 50%, rgba(7,9,12,0) 0%, rgba(7,9,12,0.45) 55%, rgba(7,9,12,0.88) 100%)"></div>
+  <svg style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none" aria-hidden="true">
+    <filter id="beeGrain"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter>
+    <rect width="100%" height="100%" filter="url(#beeGrain)" opacity="0.06"></rect>
+  </svg>
+
+  <div style="position: relative; display: flex; flex-direction: {{rootDir}}; width: 1280px; height: 720px">
+
+    <!-- Swipe surface: everything except the rail -->
+    <div style="position: relative; flex: 1 1 auto; display: flex; flex-direction: {{rootDir}}; height: 720px; touch-action: none" onPointerDown="{{onDown}}" onPointerMove="{{onMove}}" onPointerUp="{{onUp}}" onPointerCancel="{{onUp}}" onClick="{{onSurfaceClick}}">
+
+      <!-- Cover carousel -->
+      <div style="position: relative; width: 600px; height: 720px; flex: 0 0 600px; overflow: hidden">
+        <div style="position: absolute; left: 96px; top: 168px; width: 408px; height: 408px; border-radius: 50%; background: {{t.accent}}; opacity: {{glowOpacity}}; filter: blur(70px); transition: background 500ms ease, opacity 400ms ease"></div>
+        <div style="position: absolute; left: 0; top: 0; width: 600px; height: 720px; transform: translateX({{dragX}}px) scale({{coverScale}}); transform-origin: 300px 360px; transition: {{stripTransition}}">
+          <sc-for list="{{covers}}" as="cv" hint-placeholder-count="3">
+            <div style="position: absolute; left: {{cv.left}}px; top: 108px; width: 504px; height: 504px; border-radius: 30px; overflow: hidden; opacity: {{cv.opacity}}; background: linear-gradient(140deg, {{cv.c1}} 0%, {{cv.c2}} 100%); box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset">
+              <div style="position: absolute; right: -90px; top: -90px; width: 320px; height: 320px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.22)"></div>
+              <div style="position: absolute; right: -40px; top: -40px; width: 220px; height: 220px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.14)"></div>
+              <div style="position: absolute; left: 36px; top: 34px; font-size: 17px; font-weight: 700; letter-spacing: 0.14em; color: rgba(255,255,255,0.82)">{{cv.albumCaps}}</div>
+              <div style="position: absolute; left: 30px; bottom: 6px; font-size: 190px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; color: rgba(255,255,255,0.9)">{{cv.initials}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Info + controls column (driver side) -->
+      <div style="position: relative; flex: 1 1 auto; height: 720px; padding: 0 36px 0 20px; box-sizing: border-box; display: flex; flex-direction: column">
+
+        <div style="height: 96px; flex: 0 0 96px"></div>
+
+        <div style="opacity: {{chromeOpacity}}; transition: opacity {{fadeMs}}ms ease; height: 72px">
+          <div style="font-size: 15px; font-weight: 700; letter-spacing: 0.14em; color: rgba(255,255,255,0.5); animation: {{flick}}">{{labelTop}}</div>
+          <a href="Folder.dc.html" style="display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 22px; font-weight: 700; color: rgba(255,255,255,0.82); animation: {{flick}}">
+            <span>{{labelMain}}</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+          </a>
+        </div>
+
+        <div style="margin-top: 22px; height: 210px; {{titleBox}}; transition: margin {{fadeMs}}ms ease, width {{fadeMs}}ms ease">
+          <div style="font-size: {{titleSize}}px; font-weight: 800; line-height: 1.06; letter-spacing: -0.02em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; transition: font-size {{fadeMs}}ms ease">{{t.title}}</div>
+          <div style="margin-top: 12px; font-size: {{artistSize}}px; font-weight: 700; color: {{t.accent}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: font-size {{fadeMs}}ms ease, color 400ms ease">{{t.artist}}</div>
+          <div style="margin-top: 6px; font-size: 19px; font-weight: 600; color: rgba(255,255,255,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: {{chromeOpacity}}; transition: opacity {{fadeMs}}ms ease">{{t.album}}</div>
+        </div>
+
+        <!-- Seek bar: drag-only -->
+        <div style="opacity: {{chromeOpacity}}; pointer-events: {{chromePointer}}; transition: opacity {{fadeMs}}ms ease">
+          <div style="position: relative; height: 56px; touch-action: none; cursor: grab" onPointerDown="{{seekDown}}" onPointerMove="{{seekMove}}" onPointerUp="{{seekUp}}" onPointerCancel="{{seekUp}}" onClick="{{stop}}">
+            <div style="position: absolute; left: 0; right: 0; top: 50%; height: {{trackH}}px; margin-top: {{trackMt}}px; border-radius: 99px; background: rgba(255,255,255,0.16); transition: height 160ms ease, margin 160ms ease"></div>
+            <div style="position: absolute; left: 0; width: {{pct}}%; top: 50%; height: {{trackH}}px; margin-top: {{trackMt}}px; border-radius: 99px; background: {{t.accent}}; transition: height 160ms ease, margin 160ms ease, background 400ms ease"></div>
+            <div style="position: absolute; left: {{pct}}%; top: 50%; width: {{thumb}}px; height: {{thumb}}px; margin-left: {{thumbM}}px; margin-top: {{thumbM}}px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 10px rgba(0,0,0,0.35); transition: width 160ms ease, height 160ms ease, margin 160ms ease"></div>
+            <sc-if value="{{seeking}}" hint-placeholder-val="{{false}}">
+              <div style="position: absolute; left: {{pct}}%; top: -38px; transform: translateX(-50%); padding: 6px 14px; border-radius: 12px; background: #F7F8FA; color: #07090C; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums">{{elapsed}}</div>
+            </sc-if>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: -6px; font-size: 17px; font-weight: 600; color: rgba(255,255,255,0.62); font-variant-numeric: tabular-nums">
+            <span>{{elapsed}}</span>
+            <button type="button" onClick="{{toggleRemain}}" style="all: unset; cursor: pointer; padding: 4px 0 4px 16px; font-variant-numeric: tabular-nums">{{rightTime}}</button>
+          </div>
+        </div>
+
+        <!-- Transport: buttons keep their centres in glance mode, they only grow -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 18px; height: 150px">
+          <button type="button" aria-label="Shuffle" onClick="{{toggleShuffle}}" style="width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: {{shuffleBg}}; color: {{shuffleFg}}; opacity: {{chromeOpacity}}; pointer-events: {{chromePointer}}; transition: opacity {{fadeMs}}ms ease, background 200ms ease">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="m4 4 5 5"></path></svg>
+          </button>
+          <button type="button" aria-label="Previous" onClick="{{prev}}" style="width: 100px; height: 100px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.08); color: #F7F8FA; transform: scale({{btnScale}}); transition: transform {{fadeMs}}ms cubic-bezier(.2,.9,.3,1.2)">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M19 20 9 12l10-8z"></path><path d="M5 19V5" fill="none" stroke-width="2.6" stroke-linecap="round"></path></svg>
+          </button>
+          <button type="button" aria-label="Play or pause" onClick="{{togglePlay}}" style="width: 144px; height: 144px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: {{t.accent}}; color: #0B0C0F; box-shadow: 0 10px 40px {{t.glow}}; transform: scale({{btnScale}}); animation: {{pulse}}; transition: transform {{fadeMs}}ms cubic-bezier(.2,.9,.3,1.2), background 400ms ease">
+            <sc-if value="{{playing}}" hint-placeholder-val="{{true}}">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.6" height="16" rx="1.4"></rect><rect x="13.9" y="4" width="4.6" height="16" rx="1.4"></rect></svg>
+            </sc-if>
+            <sc-if value="{{paused}}" hint-placeholder-val="{{false}}">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.5 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4a1 1 0 0 0-1.5.86z"></path></svg>
+            </sc-if>
+          </button>
+          <button type="button" aria-label="Next" onClick="{{next}}" style="width: 100px; height: 100px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.08); color: #F7F8FA; transform: scale({{btnScale}}); transition: transform {{fadeMs}}ms cubic-bezier(.2,.9,.3,1.2)">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m5 4 10 8-10 8z"></path><path d="M19 5v14" fill="none" stroke-width="2.6" stroke-linecap="round"></path></svg>
+          </button>
+          <button type="button" aria-label="Repeat" onClick="{{toggleRepeat}}" style="position: relative; width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: {{repeatBg}}; color: {{repeatFg}}; opacity: {{chromeOpacity}}; pointer-events: {{chromePointer}}; transition: opacity {{fadeMs}}ms ease, background 200ms ease">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"></path><path d="M3 11V9a3 3 0 0 1 3-3h15"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v2a3 3 0 0 1-3 3H3"></path></svg>
+            <sc-if value="{{repeatOne}}" hint-placeholder-val="{{false}}">
+              <span style="position: absolute; right: 8px; top: 6px; font-size: 12px; font-weight: 800">1</span>
+            </sc-if>
+          </button>
+        </div>
+
+        <!-- Up next -->
+        <a href="Queue.dc.html" style="display: flex; align-items: center; gap: 14px; margin-top: 26px; height: 52px; padding: 0 18px; border-radius: 26px; background: rgba(255,255,255,0.06); opacity: {{chromeOpacity}}; pointer-events: {{chromePointer}}; transition: opacity {{fadeMs}}ms ease">
+          <span style="font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">UP NEXT</span>
+          <span style="flex: 1 1 auto; min-width: 0; font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{nx.title}} <span style="color: rgba(255,255,255,0.55); font-weight: 600">· {{nx.artist}}</span></span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Rail (driver side) -->
+    <nav aria-label="Main" style="position: relative; flex: 0 0 132px; width: 132px; height: 720px; box-sizing: border-box; padding: 22px 14px 18px; display: flex; flex-direction: column; align-items: stretch; gap: 6px; background: rgba(255,255,255,0.035); border-left: 1px solid rgba(255,255,255,0.06); opacity: {{chromeOpacity}}; pointer-events: {{chromePointer}}; transition: opacity {{fadeMs}}ms ease">
+      <div style="text-align: center; font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; margin-bottom: 18px">8:50</div>
+      <a href="Main.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; border-radius: 22px; background: {{t.pill}}; color: {{t.accent}}">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        <span style="font-size: 14px; font-weight: 700">Playing</span>
+      </a>
+      <a href="Home.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; border-radius: 22px; color: rgba(255,255,255,0.78)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h14V9.5"></path></svg>
+        <span style="font-size: 14px; font-weight: 700">Home</span>
+      </a>
+      <a href="Folder.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; border-radius: 22px; color: rgba(255,255,255,0.78)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"></rect><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"></rect><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"></rect></svg>
+        <span style="font-size: 14px; font-weight: 700">Library</span>
+      </a>
+      <button type="button" style="all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0; border-radius: 22px; color: rgba(255,255,255,0.78)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <span style="font-size: 14px; font-weight: 700">Search</span>
+      </button>
+      <div style="flex: 1 1 auto"></div>
+      <button type="button" aria-label="Settings" style="all: unset; cursor: pointer; display: flex; justify-content: center; padding: 14px 0; border-radius: 22px; color: rgba(255,255,255,0.6)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg>
+      </button>
+      <button type="button" aria-label="Exit to launcher" style="all: unset; cursor: pointer; display: flex; justify-content: center; padding: 14px 0; border-radius: 22px; color: rgba(255,255,255,0.6)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Glance-only layer: small clock + untouchable progress line -->
+  <div style="position: absolute; top: 24px; {{glanceClockSide}}: 34px; font-size: 20px; font-weight: 600; color: rgba(255,255,255,0.55); font-variant-numeric: tabular-nums; opacity: {{glanceOpacity}}; transition: opacity {{fadeMs}}ms ease; pointer-events: none">8:50</div>
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(255,255,255,0.1); opacity: {{glanceOpacity}}; transition: opacity {{fadeMs}}ms ease; pointer-events: none">
+    <div style="width: {{pct}}%; height: 5px; background: {{t.accent}}; transition: background 400ms ease"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"driverSide":{"editor":"enum","options":["right","left"],"default":"right"},"glanceDelay":{"editor":"int","min":3,"max":60,"unit":"s","default":10},"reduceMotion":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":720}}'>
+const BEE_TRACKS = [
+  { title: 'Samajavaragamana', artist: 'Sid Sriram', album: 'Ala Vaikunthapurramuloo', folder: 'Road Trip', dur: 221, c1: '#3B2A7A', c2: '#E2557B', accent: '#FF8FB0', deep: '#1E0F33', cameo: '' },
+  { title: 'Hooked on a Feeling', artist: 'Blue Swede', album: 'Hooked on a Feeling', folder: 'Road Trip', dur: 172, c1: '#1D3557', c2: '#E76F51', accent: '#FF9473', deep: '#0F1C33', cameo: 'Ooga-chaka' },
+  { title: 'Butta Bomma', artist: 'Armaan Malik', album: 'Ala Vaikunthapurramuloo', folder: 'Road Trip', dur: 197, c1: '#0E5E6F', c2: '#F2C14E', accent: '#FFD45C', deep: '#082A31', cameo: '' },
+  { title: 'Naatu Naatu', artist: 'Rahul Sipligunj, Kaala Bhairava', album: 'RRR', folder: 'Road Trip', dur: 214, c1: '#8A1C14', c2: '#F08A24', accent: '#FFA24D', deep: '#2E0B07', cameo: 'Oscar-winning feet detected' },
+  { title: 'Life Is a Highway', artist: 'Tom Cochrane', album: 'Mad Mad World', folder: 'Road Trip', dur: 266, c1: '#264653', c2: '#2A9D8F', accent: '#5EE0CF', deep: '#0C2429', cameo: 'Literally my job' },
+  { title: 'Mr. Blue Sky', artist: 'Electric Light Orchestra', album: 'Out of the Blue', folder: 'Road Trip', dur: 303, c1: '#1B4FBF', c2: '#7FD3FF', accent: '#8AD0FF', deep: '#0A1A42', cameo: '' }
+];
+const BEE_STEP = 528;
+
+function beeFmt(s) {
+  const m = Math.floor(s / 60);
+  const r = Math.floor(s % 60);
+  return m + ':' + (r < 10 ? '0' : '') + r;
+}
+
+function beeHexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { idx: 0, dragX: 0, anim: false, playing: true, pos: 83, glance: false, cameo: '', shuffle: false, repeat: 1, seeking: false, remain: true };
+    this.lastTouch = Date.now();
+    this.drag = null;
+    this.seek = null;
+    this.suppressUntil = 0;
+  }
+
+  componentDidMount() {
+    this.timer = setInterval(() => this.tick(), 500);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    clearTimeout(this.t1);
+    clearTimeout(this.t2);
+    clearTimeout(this.t3);
+  }
+
+  tick() {
+    const s = this.state;
+    const t = BEE_TRACKS[s.idx];
+    const upd = {};
+    if (s.playing && !s.seeking) {
+      const p = s.pos + 0.5;
+      if (p >= t.dur) { this.go(1); return; }
+      upd.pos = p;
+    }
+    const delay = (this.props.glanceDelay ?? 10) * 1000;
+    if (!s.glance && s.playing && !s.anim && !s.seeking && Date.now() - this.lastTouch > delay) upd.glance = true;
+    this.setState(upd);
+  }
+
+  touch() { this.lastTouch = Date.now(); }
+
+  go(dir) {
+    const s = this.state;
+    if (s.anim) return;
+    const n = BEE_TRACKS.length;
+    const target = (s.idx + dir + n) % n;
+    this.setState({ anim: true, dragX: dir > 0 ? -BEE_STEP : BEE_STEP });
+    clearTimeout(this.t1);
+    this.t1 = setTimeout(() => {
+      const nt = BEE_TRACKS[target];
+      const showCameo = nt.cameo && !this.state.glance;
+      this.setState({ idx: target, dragX: 0, anim: false, pos: 0, cameo: showCameo ? nt.cameo : '' });
+      clearTimeout(this.t2);
+      if (showCameo) this.t2 = setTimeout(() => this.setState({ cameo: '' }), 5000);
+    }, this.props.reduceMotion ? 160 : 320);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const n = BEE_TRACKS.length;
+    const rhd = (this.props.driverSide ?? 'right') === 'right';
+    const reduce = !!this.props.reduceMotion;
+    const g = s.glance;
+    const base = BEE_TRACKS[s.idx];
+    const t = Object.assign({}, base, { glow: beeHexA(base.accent, 0.35), pill: beeHexA(base.accent, 0.16) });
+    const p = BEE_TRACKS[(s.idx - 1 + n) % n];
+    const nx = BEE_TRACKS[(s.idx + 1) % n];
+    const coverOf = (tr, left, opacity) => ({
+      left, opacity, c1: tr.c1, c2: tr.c2,
+      albumCaps: tr.album.toUpperCase(),
+      initials: tr.title.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+    });
+    const pct = Math.min(100, (s.pos / base.dur) * 100).toFixed(2);
+    const fadeMs = reduce ? 150 : (g ? 400 : 250);
+    const extra = g ? 132 : 0;
+    const playMove = reduce ? 'transform 160ms ease' : 'transform 320ms cubic-bezier(.22,1.12,.36,1)';
+    const accentFg = '#0B0C0F';
+    return {
+      t, nx,
+      covers: [coverOf(p, 48 - BEE_STEP, 0.42), coverOf(base, 48, 1), coverOf(nx, 48 + BEE_STEP, 0.42)],
+      rootDir: rhd ? 'row' : 'row-reverse',
+      dragX: s.dragX,
+      stripTransition: s.anim ? playMove : 'transform ' + fadeMs + 'ms ease',
+      coverScale: g ? 1.06 : 1,
+      glowOpacity: g ? 0.55 : 0.4,
+      chromeOpacity: g ? 0 : 1,
+      chromePointer: g ? 'none' : 'auto',
+      glanceOpacity: g ? 1 : 0,
+      glanceClockSide: rhd ? 'right' : 'left',
+      fadeMs,
+      titleSize: g ? 66 : 52,
+      artistSize: g ? 30 : 26,
+      titleBox: rhd ? 'width: calc(100% + ' + extra + 'px)' : 'width: calc(100% + ' + extra + 'px); margin-left: -' + extra + 'px',
+      btnScale: g ? 1.12 : 1,
+      pulse: g && !s.playing && !reduce ? 'beePulse 4s ease-in-out infinite' : 'none',
+      flick: s.cameo ? 'beeFlick 700ms steps(1, end)' : 'none',
+      labelTop: s.cameo ? 'BEE SAYS' : 'PLAYING FROM',
+      labelMain: s.cameo ? s.cameo : 'USB · ' + base.folder,
+      playing: s.playing,
+      paused: !s.playing,
+      repeatOne: s.repeat === 2,
+      shuffleBg: s.shuffle ? t.pill : 'transparent',
+      shuffleFg: s.shuffle ? t.accent : 'rgba(255,255,255,0.7)',
+      repeatBg: s.repeat ? t.pill : 'transparent',
+      repeatFg: s.repeat ? t.accent : 'rgba(255,255,255,0.7)',
+      pct,
+      elapsed: beeFmt(s.pos),
+      rightTime: s.remain ? '−' + beeFmt(base.dur - s.pos) : beeFmt(base.dur),
+      seeking: s.seeking,
+      trackH: s.seeking ? 10 : 6,
+      trackMt: s.seeking ? -5 : -3,
+      thumb: s.seeking ? 32 : 22,
+      thumbM: s.seeking ? -16 : -11,
+
+      stop: (e) => { e.stopPropagation(); },
+      togglePlay: (e) => { e.stopPropagation(); this.touch(); this.setState({ playing: !this.state.playing }); },
+      prev: (e) => { e.stopPropagation(); this.touch(); if (this.state.pos > 3) this.setState({ pos: 0 }); else this.go(-1); },
+      next: (e) => { e.stopPropagation(); this.touch(); this.go(1); },
+      toggleShuffle: (e) => { e.stopPropagation(); this.touch(); this.setState({ shuffle: !this.state.shuffle }); },
+      toggleRepeat: (e) => { e.stopPropagation(); this.touch(); this.setState({ repeat: (this.state.repeat + 1) % 3 }); },
+      toggleRemain: (e) => { e.stopPropagation(); this.touch(); this.setState({ remain: !this.state.remain }); },
+
+      onDown: (e) => {
+        this.touch();
+        if (this.state.anim) return;
+        const el = e.currentTarget;
+        const r = el.getBoundingClientRect();
+        this.drag = { x: e.clientX, y: e.clientY, id: e.pointerId, claimed: false, scale: r.width / el.offsetWidth || 1, el, t: Date.now() };
+      },
+      onMove: (e) => {
+        const d = this.drag;
+        if (!d || d.id !== e.pointerId) return;
+        const dx = (e.clientX - d.x) / d.scale;
+        const dy = (e.clientY - d.y) / d.scale;
+        if (!d.claimed) {
+          if (Math.abs(dx) > 24 && Math.abs(dx) > Math.abs(dy) * 1.7) {
+            d.claimed = true;
+            try { d.el.setPointerCapture(e.pointerId); } catch (err) {}
+          } else {
+            return;
+          }
+        }
+        this.setState({ dragX: dx });
+      },
+      onUp: (e) => {
+        const d = this.drag;
+        this.drag = null;
+        if (!d || !d.claimed) return;
+        this.suppressUntil = Date.now() + 80;
+        const dx = this.state.dragX;
+        const v = Math.abs(dx) / Math.max(Date.now() - d.t, 1) * 1000;
+        if (Math.abs(dx) > BEE_STEP * 0.3 || (v > 1000 && Math.abs(dx) > 60)) {
+          this.go(dx < 0 ? 1 : -1);
+        } else {
+          this.setState({ anim: true, dragX: 0 });
+          clearTimeout(this.t3);
+          this.t3 = setTimeout(() => this.setState({ anim: false }), 320);
+        }
+      },
+      onSurfaceClick: () => {
+        if (Date.now() < this.suppressUntil) return;
+        this.touch();
+        if (this.state.glance) this.setState({ glance: false });
+      },
+
+      seekDown: (e) => {
+        e.stopPropagation();
+        this.touch();
+        const el = e.currentTarget;
+        try { el.setPointerCapture(e.pointerId); } catch (err) {}
+        this.seek = { el, x: e.clientX, moved: false };
+      },
+      seekMove: (e) => {
+        const sk = this.seek;
+        if (!sk) return;
+        if (!sk.moved && Math.abs(e.clientX - sk.x) < 6) return;
+        sk.moved = true;
+        const r = sk.el.getBoundingClientRect();
+        const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+        this.setState({ seeking: true, pos: f * BEE_TRACKS[this.state.idx].dur });
+      },
+      seekUp: (e) => {
+        if (e) e.stopPropagation();
+        this.seek = null;
+        this.touch();
+        this.setState({ seeking: false });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

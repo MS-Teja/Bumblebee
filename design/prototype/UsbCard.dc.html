@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bumblebee — USB inserted</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07090C}
+</style>
+</helmet>
+<div style="position: relative; width: 1280px; height: 720px; overflow: hidden; background: #0A1215; font-family: 'Manrope', sans-serif; color: #F7F8FA">
+  <div style="position: absolute; left: -260px; top: -220px; width: 1000px; height: 1000px; border-radius: 50%; background: #5B6B6E; opacity: 0.22; filter: blur(140px)"></div>
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 50%, rgba(7,9,12,0) 0%, rgba(7,9,12,0.5) 55%, rgba(7,9,12,0.9) 100%)"></div>
+
+  <!-- Waiting state underneath: desaturated cover, clear instruction -->
+  <div style="position: absolute; left: 48px; top: 108px; width: 504px; height: 504px; border-radius: 30px; overflow: hidden; background: linear-gradient(140deg, #0E5E6F 0%, #F2C14E 100%); filter: grayscale(1) brightness(0.55)">
+    <div style="position: absolute; left: 30px; bottom: 6px; font-size: 190px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; color: rgba(255,255,255,0.9)">BB</div>
+  </div>
+  <div style="position: absolute; left: 48px; top: 108px; width: 504px; height: 504px; display: flex; align-items: center; justify-content: center">
+    <div style="display: flex; align-items: center; justify-content: center; width: 120px; height: 120px; border-radius: 50%; background: rgba(7,9,12,0.6); color: #F7F8FA">
+      <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="7" rx="1"></rect><path d="M5 9h14v9a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"></path><path d="M10 5h.01M14 5h.01"></path></svg>
+    </div>
+  </div>
+  <div style="position: absolute; left: 620px; top: 120px; width: 470px">
+    <div style="font-size: 15px; font-weight: 700; letter-spacing: 0.14em; color: rgba(255,255,255,0.5)">WAITING FOR THE DRIVE</div>
+    <div style="margin-top: 14px; font-size: 44px; font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; color: rgba(255,255,255,0.7)">Insert SanDisk to continue</div>
+    <div style="margin-top: 14px; font-size: 21px; font-weight: 600; color: rgba(255,255,255,0.5)">2:14 into Butta Bomma · Armaan Malik</div>
+  </div>
+
+  <!-- Rail -->
+  <div style="position: absolute; right: 0; top: 0; width: 132px; height: 720px; background: rgba(255,255,255,0.035); border-left: 1px solid rgba(255,255,255,0.06)">
+    <div style="margin-top: 22px; text-align: center; font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.6)">8:52</div>
+  </div>
+
+  <!-- Source card: slides in from the driver-side edge -->
+  <section aria-label="USB drive connected" style="position: absolute; right: 156px; top: 300px; width: 470px; border-radius: 30px; overflow: hidden; background: linear-gradient(160deg, #1B2A2E 0%, #12171B 100%); box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.09) inset">
+    <div style="padding: 22px 24px 20px">
+      <!-- Radio-dial "tuning" strip: the needle sweeps, then settles on the drive name -->
+      <div style="position: relative; height: 34px; border-radius: 10px; background: rgba(255,199,44,0.08); overflow: hidden">
+        <div style="position: absolute; inset: 0 10px; display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 6px">
+          <span style="width: 2px; height: 14px; background: rgba(255,199,44,0.6)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 14px; background: rgba(255,199,44,0.6)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 14px; background: rgba(255,199,44,0.6)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 14px; background: rgba(255,199,44,0.6)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 7px; background: rgba(255,199,44,0.35)"></span><span style="width: 2px; height: 14px; background: rgba(255,199,44,0.6)"></span>
+        </div>
+        <div style="position: absolute; left: 63%; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: #FFC72C; box-shadow: 0 0 10px #FFC72C"></div>
+        <div style="position: absolute; left: 12px; top: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.16em; color: #FFC72C">TUNING IN…</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 18px; margin-top: 18px">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; flex: 0 0 96px; width: 96px; height: 96px; border-radius: 18px; overflow: hidden">
+          <div style="background: linear-gradient(140deg, #8A1C14 0%, #F08A24 100%)"></div>
+          <div style="background: linear-gradient(140deg, #1B4FBF 0%, #7FD3FF 100%)"></div>
+          <div style="background: linear-gradient(140deg, #3B2A7A 0%, #E2557B 100%)"></div>
+          <div style="background: linear-gradient(140deg, #264653 0%, #2A9D8F 100%)"></div>
+        </div>
+        <div style="min-width: 0">
+          <div style="font-size: 26px; font-weight: 800">SanDisk connected</div>
+          <div style="margin-top: 4px; font-size: 17px; font-weight: 600; color: rgba(255,255,255,0.6)">1,204 songs · Mixtape Vol. 2</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px">
+        <button type="button" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 10px; height: 72px; border-radius: 36px; border: none; background: #FFD45C; color: #0B0C0F; font-size: 20px; font-weight: 800">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.5 4.6v14.8a1 1 0 0 0 1.5.86l12-7.4a1 1 0 0 0 0-1.72l-12-7.4a1 1 0 0 0-1.5.86z"></path></svg>
+          Resume Butta Bomma
+        </button>
+        <button type="button" style="flex: 0 0 120px; height: 72px; border-radius: 36px; background: transparent; border: 2px solid rgba(255,255,255,0.25); color: #F7F8FA; font-size: 19px; font-weight: 800">Open</button>
+      </div>
+    </div>
+    <!-- 8-second auto-dismiss timer -->
+    <div style="height: 4px; background: rgba(255,255,255,0.08)">
+      <div style="width: 64%; height: 4px; background: rgba(255,212,92,0.8)"></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

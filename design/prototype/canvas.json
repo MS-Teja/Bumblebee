@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-06T21:10:00Z"},
+  "title": "Bumblebee — Car Music Player Design",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 720, "title": "Now Playing (interactive: swipe, glance)", "is_interactive": true, "radius": 18},
+    "Glance.dc.html": {"x": 1360, "y": 0, "w": 1280, "h": 720, "title": "Glance mode — the driving screen", "radius": 18},
+    "Home.dc.html": {"x": 0, "y": 1100, "w": 1280, "h": 720, "title": "Home", "is_interactive": true, "radius": 18},
+    "Folder.dc.html": {"x": 1360, "y": 1100, "w": 1280, "h": 720, "title": "Folder view", "is_interactive": true, "radius": 18},
+    "Queue.dc.html": {"x": 0, "y": 2200, "w": 1280, "h": 720, "title": "Queue sheet", "is_interactive": true, "radius": 18},
+    "UsbCard.dc.html": {"x": 1360, "y": 2200, "w": 1280, "h": 720, "title": "USB inserted (\"Tuning in…\")", "radius": 18},
+    "Covers.dc.html": {"x": 0, "y": 3300, "w": 1280, "h": 720, "title": "Cover system + easter eggs", "radius": 18},
+    "Tokens.dc.html": {"x": 1360, "y": 3300, "w": 1280, "h": 720, "title": "Type, colour, motion", "radius": 18}
+  },
+  "order": ["Main.dc.html", "Glance.dc.html", "Home.dc.html", "Folder.dc.html", "Queue.dc.html", "UsbCard.dc.html", "Covers.dc.html", "Tokens.dc.html"],
+  "notes": {
+    "rowDriving": {"x": 0, "y": -300, "text": "Driving: Now Playing + Glance", "kind": "title1", "maxW": 2640},
+    "rowBrowsing": {"x": 0, "y": 800, "text": "Browsing: Home + Folders", "kind": "title1", "maxW": 2640},
+    "rowMoments": {"x": 0, "y": 1900, "text": "Moments: Queue + USB", "kind": "title1", "maxW": 2640},
+    "rowSystem": {"x": 0, "y": 3000, "text": "System: covers, easter eggs, tokens", "kind": "title1", "maxW": 2640}
+  },
+  "designSystems": []
+}
