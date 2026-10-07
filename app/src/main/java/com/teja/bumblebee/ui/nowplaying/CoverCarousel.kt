@@ -28,10 +28,10 @@ import kotlin.math.min
 import kotlin.math.sign
 
 /**
- * The song carousel. Three covers (previous, current, next) on a strip that follows the finger 1:1.
- * Covers tilt and shrink with distance from the centre, neighbours peek in from the edges, and the
- * release velocity carries into a spring. Every skip — swipe, tap on a neighbour, button, steering
- * wheel — runs through the same animation, and a new swipe can grab a cover mid-flight.
+ * The song deck. Only the current cover is visible at rest. A swipe drags it away 1:1 (tilting and
+ * fading like a card being dealt off the top) while the next/previous cover rises from behind it.
+ * The release velocity carries into a spring. Every skip — swipe, button, steering wheel — runs
+ * through the same animation, and a new swipe can grab the deck mid-flight.
  */
 class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
 
@@ -94,7 +94,8 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
 
     init {
         isChildrenDrawingOrderEnabled = true
-        clipChildren = true
+        // The outgoing card may travel past the cover area while it fades.
+        clipChildren = false
         val glowSize = 440.u
         glowDrawable.paint.shader = RadialGradient(
             glowSize / 2f, glowSize / 2f, glowSize / 2f,
@@ -103,20 +104,13 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
         glow.background = glowDrawable
         glow.alpha = 0.5f
         addView(glow, frame(glowSize, glowSize, l = coverLeft + (coverSize - glowSize) / 2, t = coverTop + (coverSize - glowSize) / 2 + 30.u))
-        slots.forEachIndexed { i, iv ->
+        slots.forEach { iv ->
             iv.scaleType = ImageView.ScaleType.CENTER_CROP
             iv.roundCorners(30)
             iv.cameraDistance = 9000f * resources.displayMetrics.density
-            iv.setOnClickListener { onSlotTap(i) }
             addView(iv, frame(coverSize, coverSize, l = coverLeft, t = coverTop))
         }
         layoutStrip()
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        // Parents disable child clipping (glance text overflows), so clip the strip ourselves.
-        clipBounds = android.graphics.Rect(0, 0, w, h)
     }
 
     fun setGlow(color: Int) {
@@ -237,14 +231,6 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
         return sign(o) * limit * (1f - 1f / (x / limit + 1f))
     }
 
-    private fun onSlotTap(slot: Int) {
-        if (isMoving) return
-        when (slot) {
-            order[0] -> if (hasPrev) { listener?.onUserSkip(-1); animateCommit(-1, 0f) }
-            order[2] -> if (hasNext) { listener?.onUserSkip(+1); animateCommit(+1, 0f) }
-        }
-    }
-
     // ------------------------------------------------------------------ commit / settle
 
     private fun animateCommit(dir: Int, velocity: Float) {
@@ -276,6 +262,7 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
     private fun finishCommitNow() {
         val dir = committing
         rotate(dir)
+        offset = 0f
         committing = 0
         listener?.onSettled(dir)
         pendingBind?.let { pb ->
@@ -305,25 +292,47 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
     // ------------------------------------------------------------------ layout
 
     private fun layoutStrip() {
+        val p = (offset / step).coerceIn(-1.2f, 1.2f)
+        val a = abs(p).coerceAtMost(1f)
+        val incomingPos = if (p < 0) 2 else if (p > 0) 0 else -1
         for (pos in 0..2) {
             val v = slots[order[pos]]
-            val d = (pos - 1) + offset / step
-            val ad = min(1f, abs(d))
-            val scale = 1f - 0.12f * ad
-            v.scaleX = scale
-            v.scaleY = scale
-            v.translationX = d * step - sign(d) * coverSize * (1f - scale) / 2f
-            v.rotationY = -d.coerceIn(-1f, 1f) * 16f
-            v.alpha = when {
-                tracks[order[pos]] == null && pos != 1 -> 0f
-                abs(d) <= 1f -> 1f - 0.52f * ad
-                else -> (0.48f * (2f - abs(d))).coerceAtLeast(0f)
+            when (pos) {
+                1 -> {
+                    // The top card follows the finger, tilts and fades as it is dealt away.
+                    v.translationX = offset
+                    v.translationY = 0f
+                    v.rotation = p * 5f
+                    v.rotationY = -p * 10f
+                    val s = 1f - 0.06f * a
+                    v.scaleX = s
+                    v.scaleY = s
+                    // Fade faster when it travels over the text column.
+                    v.alpha = (1f - a * (if (p > 0) 1.5f else 1.1f)).coerceIn(0f, 1f)
+                }
+                incomingPos -> {
+                    // The next card rises from behind: small, dim and slightly offset, growing into place.
+                    val e = a * a * (3f - 2f * a)
+                    val s = 0.86f + 0.14f * e
+                    v.scaleX = s
+                    v.scaleY = s
+                    v.rotation = 0f
+                    v.rotationY = 0f
+                    v.translationX = (if (p < 0) 1f else -1f) * (1f - e) * 46f.u
+                    v.translationY = (1f - e) * 14f.u
+                    v.alpha = if (tracks[order[pos]] == null) 0f else e.coerceIn(0f, 1f)
+                }
+                else -> {
+                    v.alpha = 0f
+                    v.translationX = 0f
+                    v.rotation = 0f
+                    v.rotationY = 0f
+                }
             }
-            v.isClickable = pos != 1
+            v.isClickable = false
         }
         invalidate()
-        val p = (offset / step).coerceIn(-1f, 1f)
-        glow.alpha = 0.5f * (1f - abs(p) * 0.6f)
-        listener?.onProgress(p)
+        glow.alpha = 0.5f * (1f - a * 0.5f)
+        listener?.onProgress(p.coerceIn(-1f, 1f))
     }
 }

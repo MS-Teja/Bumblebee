@@ -244,13 +244,15 @@ data class FolderCardItem(val path: String, val name: String, val subtitle: Stri
 /** Folder cards: big (mosaic tile + name) when a folder has only subfolders, compact chips above tracks. */
 class FolderCardAdapter(
     private val big: Boolean,
-    private val onOpen: (FolderCardItem) -> Unit,
+    private val onOpen: (FolderCardItem, ImageView) -> Unit,
     private val onPlay: (FolderCardItem) -> Unit,
     private val onLong: (FolderCardItem) -> Unit,
 ) : RecyclerView.Adapter<FolderCardAdapter.Holder>() {
     var items: List<FolderCardItem> = emptyList()
         set(v) { field = v; notifyDataSetChanged() }
 
+    init { setHasStableIds(true) }
+    override fun getItemId(position: Int) = items[position].path.hashCode().toLong()
     override fun getItemCount() = items.size
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(parent.context)
     override fun onBindViewHolder(h: Holder, position: Int) = h.bind(items[position])
@@ -290,7 +292,7 @@ class FolderCardAdapter(
                 root.layoutParams = RecyclerView.LayoutParams(MATCH, 84.u).apply { bottomMargin = 12.u; marginEnd = 12.u }
             }
             root.pressable(0.97f, onLongClick = { items.getOrNull(bindingAdapterPosition)?.let(onLong) }) {
-                items.getOrNull(bindingAdapterPosition)?.let(onOpen)
+                items.getOrNull(bindingAdapterPosition)?.let { onOpen(it, art) }
             }
             playBtn.pressable(0.9f) { items.getOrNull(bindingAdapterPosition)?.let(onPlay) }
         }
@@ -396,6 +398,62 @@ class AlphabetRail(ctx: Context, private val list: RecyclerView, private val key
             }
         }
     }
+}
+
+/** A full-width section label inside a list ("2 FOLDERS", "6 SONGS IN THIS FOLDER"), with an optional action. */
+class HeaderAdapter(private var title: String, private var action: String? = null, private val onAction: (() -> Unit)? = null) :
+    RecyclerView.Adapter<HeaderAdapter.H>() {
+    var visible = true
+        set(v) { if (field != v) { field = v; if (v) notifyItemInserted(0) else notifyItemRemoved(0) } }
+
+    init { setHasStableIds(true) }
+    override fun getItemId(position: Int) = title.hashCode().toLong() xor 0x5EED
+    override fun getItemCount() = if (visible) 1 else 0
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = H(parent.context)
+    override fun onBindViewHolder(h: H, position: Int) = h.bind()
+
+    fun set(title: String, action: String?) {
+        this.title = title
+        this.action = action
+        if (visible) notifyItemChanged(0)
+    }
+
+    inner class H(ctx: Context) : RecyclerView.ViewHolder(LinearLayout(ctx)) {
+        private val label = ctx.label("", C.TEXT3, 14f)
+        private val act = ctx.text("", 16f, Fonts.extraBold, C.TEXT).apply {
+            setPadding(18.u, 10.u, 18.u, 10.u)
+            background = rounded(0x14FFFFFF, 22)
+        }
+        init {
+            (itemView as LinearLayout).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                setPadding(6.u, 16.u, 8.u, 8.u)
+                addView(label, linear(0, WRAP, 1f))
+                addView(act, linear(WRAP, WRAP))
+                layoutParams = RecyclerView.LayoutParams(MATCH, WRAP)
+            }
+            act.pressable(0.95f) { onAction?.invoke() }
+        }
+        fun bind() {
+            label.text = title.uppercase()
+            act.text = action ?: ""
+            act.visibility = if (action == null) View.GONE else View.VISIBLE
+        }
+    }
+}
+
+/** Rows fade and rise in, staggered, the first time a list fills (cheap view animations). */
+fun RecyclerView.staggerIn() {
+    if (Motion.reduced) return
+    val set = android.view.animation.AnimationSet(true).apply {
+        addAnimation(android.view.animation.AlphaAnimation(0f, 1f))
+        addAnimation(android.view.animation.TranslateAnimation(0f, 0f, 22f.u, 0f))
+        duration = 300
+        interpolator = android.view.animation.DecelerateInterpolator(2f)
+    }
+    layoutAnimation = android.view.animation.LayoutAnimationController(set, 0.07f)
+    scheduleLayoutAnimation()
 }
 
 /** Shared empty state ("Nothing here." / "Bee is speechless."). */

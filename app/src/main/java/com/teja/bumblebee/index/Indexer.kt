@@ -41,16 +41,13 @@ object Indexer {
     fun init(context: Context) { app = context.applicationContext }
 
     fun scanAll(force: Boolean = false) {
-        val stale = System.currentTimeMillis() - Prefs.lastScanAt > 3_600_000L
-        val unscanned = Volumes.all.value.any { it.id !in Prefs.scannedVolumes }
-        if (!force && !stale && !unscanned) {
-            scope.launch { lock.withLock { tagPass() } }
-            return
-        }
         scope.launch {
             lock.withLock {
-                Volumes.all.value.forEach { walk(it) }
-                Prefs.lastScanAt = System.currentTimeMillis()
+                val stale = System.currentTimeMillis() - Prefs.lastScanAt > 3_600_000L
+                // Unscanned, or "scanned" but empty (e.g. access wasn't live yet): walk it again.
+                val todo = Volumes.all.value.filter { force || stale || it.id !in Prefs.scannedVolumes || Library.volumeStats(it.id).first == 0 }
+                todo.forEach { walk(it) }
+                if (todo.isNotEmpty()) Prefs.lastScanAt = System.currentTimeMillis()
                 tagPass()
             }
         }
@@ -66,6 +63,11 @@ object Indexer {
     }
 
     private fun walk(volume: Volume) {
+        // Unreadable (permission not live yet, drive half-mounted): don't record it as scanned.
+        if (volume.root.listFiles() == null) {
+            _state.value = IndexState()
+            return
+        }
         _state.value = IndexState(true, "Rewinding the tapes…")
         val found = ArrayList<Triple<String, Long, Long>>()
         val stack = ArrayDeque<File>().apply { add(volume.root) }

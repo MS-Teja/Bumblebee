@@ -75,7 +75,13 @@ object Library {
         db.rawQuery(sql, args).use { c -> buildList { while (c.moveToNext()) add(c.toTrack()) } }
 
     private val minMs get() = Prefs.minDurationSec * 1000L
-    private val durationFilter get() = "(duration = 0 OR duration >= $minMs)"
+    /** Only connected drives, and no tracks shorter than the "hide short tracks" setting. */
+    private val durationFilter get() = "(duration = 0 OR duration >= $minMs) AND $liveFilter"
+    private val liveFilter: String
+        get() {
+            val ids = com.teja.bumblebee.storage.Volumes.all.value.map { it.id }
+            return if (ids.isEmpty()) "1 = 1" else "volume IN (" + ids.joinToString(",") { "'" + it.replace("'", "''") + "'" } + ")"
+        }
 
     fun tracksIn(parent: String): Map<String, Track> =
         query("SELECT $TRACK_COLS FROM tracks WHERE parent = ?", parent).associateBy { it.path }
@@ -145,7 +151,7 @@ object Library {
         query("SELECT $TRACK_COLS FROM tracks WHERE $durationFilter ORDER BY added DESC LIMIT $limit")
 
     fun mostPlayed(limit: Int): List<Track> =
-        query("SELECT $TRACK_COLS FROM tracks WHERE plays > 0 ORDER BY plays DESC, last_played DESC LIMIT $limit")
+        query("SELECT $TRACK_COLS FROM tracks WHERE plays > 0 AND $liveFilter ORDER BY plays DESC, last_played DESC LIMIT $limit")
 
     fun plays(path: String): Int =
         db.rawQuery("SELECT plays FROM tracks WHERE path = ?", arrayOf(path)).use { if (it.moveToFirst()) it.getInt(0) else 0 }
@@ -166,7 +172,8 @@ object Library {
             .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
         val byPath = tracksByPath(paths)
         val min = minMs
-        return paths.mapNotNull { byPath[it] }.filter { it.durationMs == 0L || it.durationMs >= min }
+        return paths.mapNotNull { byPath[it] }
+            .filter { (it.durationMs == 0L || it.durationMs >= min) && com.teja.bumblebee.storage.Volumes.forPath(it.path) != null }
     }
 
     // ---------------------------------------------------------------- folders
@@ -188,19 +195,19 @@ object Library {
         db.rawQuery("SELECT direct FROM folders WHERE path = ?", arrayOf(path)).use { if (it.moveToFirst()) it.getInt(0) else -1 }
 
     fun recentFolders(limit: Int): List<FolderInfo> =
-        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE last_played > 0 AND direct > 0 ORDER BY last_played DESC LIMIT $limit", null)
+        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE $liveFilter AND last_played > 0 AND direct > 0 ORDER BY last_played DESC LIMIT $limit", null)
             .use { c -> buildList { while (c.moveToNext()) add(c.toFolder()) } }
 
     fun mostPlayedFolders(limit: Int): List<FolderInfo> =
-        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE plays > 0 AND direct > 0 ORDER BY plays DESC LIMIT $limit", null)
+        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE $liveFilter AND plays > 0 AND direct > 0 ORDER BY plays DESC LIMIT $limit", null)
             .use { c -> buildList { while (c.moveToNext()) add(c.toFolder()) } }
 
     fun newestFolders(limit: Int): List<FolderInfo> =
-        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE direct > 0 ORDER BY added DESC LIMIT $limit", null)
+        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE $liveFilter AND direct > 0 ORDER BY added DESC LIMIT $limit", null)
             .use { c -> buildList { while (c.moveToNext()) add(c.toFolder()) } }
 
     fun searchFolders(text: String, limit: Int = 12): List<FolderInfo> =
-        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE name LIKE ? AND total > 0 ORDER BY total DESC LIMIT $limit", arrayOf("%${text.trim()}%"))
+        db.rawQuery("SELECT $FOLDER_COLS FROM folders WHERE $liveFilter AND name LIKE ? AND total > 0 ORDER BY total DESC LIMIT $limit", arrayOf("%${text.trim()}%"))
             .use { c -> buildList { while (c.moveToNext()) add(c.toFolder()) } }
 
     fun volumeStats(volume: String): Pair<Int, Int> =

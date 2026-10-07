@@ -125,7 +125,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!started && hasStorageAccess()) startLibrary()
+        if (!hasStorageAccess()) return
+        if (!started) startLibrary() else Indexer.scanAll()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -237,15 +238,16 @@ class MainActivity : ComponentActivity() {
         rail.select(tab, animate)
     }
 
-    fun push(screen: Screen) {
+    fun push(screen: Screen, shared: ImageView? = null) {
         val stack = stackFor(screen.tab)
+        val from = current
         if (currentTab != screen.tab) {
             currentTab = screen.tab
             rail.select(screen.tab, true)
         }
-        val from = current
         stack.addLast(screen)
         transition(from, screen, Kind.PUSH)
+        if (shared != null) screen.view.post { screen.heroArt?.let { flyShared(shared, it) } }
     }
 
     fun pop(): Boolean {
@@ -259,23 +261,62 @@ class MainActivity : ComponentActivity() {
         return true
     }
 
-    fun openFolder(path: String, highlight: String? = null) {
+    /**
+     * Opens a folder. Navigating deeper from the current folder keeps the trail (so Back goes up one
+     * level); jumping from elsewhere starts a fresh trail under Home.
+     */
+    fun openFolder(path: String, highlight: String? = null, shared: ImageView? = null) {
         val stack = stackFor(Tab.HOME)
-        while (stack.size > 1) stack.removeLast().also { if (it !== current) { it.dispatchDestroy(); screenHost.removeView(it.view) } }
-        if (currentTab != Tab.HOME) {
-            // Switch quietly, then push so the folder slides in.
-            val from = current
-            currentTab = Tab.HOME
-            rail.select(Tab.HOME, true)
-            val screen = FolderScreen(this, File(path), highlight)
-            stack.addLast(screen)
-            transition(from, screen, Kind.PUSH)
-        } else {
-            push(FolderScreen(this, File(path), highlight))
+        val top = if (currentTab == Tab.HOME) stack.last() else null
+        val deeper = top is FolderScreen && path.startsWith(top.path + "/")
+        if (!deeper) {
+            // Drop old folder screens (but never the one currently on screen; transition removes it).
+            while (stack.size > 1) stack.removeLast().also { if (it !== current) { it.dispatchDestroy(); screenHost.removeView(it.view) } }
         }
+        val screen = FolderScreen(this, File(path), highlight, shared?.drawable?.constantState?.newDrawable())
+        push(screen, shared)
     }
 
-    fun openDetail(screen: DetailScreen) = push(screen)
+    fun openDetail(screen: DetailScreen, shared: ImageView? = null) = push(screen, shared)
+
+    /** Card artwork flies into the opened page's hero image. */
+    private fun flyShared(from: ImageView, to: ImageView) {
+        if (Motion.reduced || from.width == 0 || to.width == 0 || !from.isAttachedToWindow) return
+        val d = from.drawable?.constantState?.newDrawable()?.mutate() ?: return
+        val a = IntArray(2).also { from.getLocationInWindow(it) }
+        val b = IntArray(2).also { to.getLocationInWindow(it) }
+        val fly = ImageView(this).apply {
+            setImageDrawable(d)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            roundCorners(30)
+            pivotX = 0f
+            pivotY = 0f
+        }
+        overlay.addView(fly, frame(to.width, to.height))
+        val s = from.width.toFloat() / to.width
+        fly.translationX = a[0].toFloat()
+        fly.translationY = a[1].toFloat()
+        fly.scaleX = s
+        fly.scaleY = s
+        to.alpha = 0f
+        fly.animate().translationX(b[0].toFloat()).translationY(b[1].toFloat()).scaleX(1f).scaleY(1f)
+            .setDuration(360).setInterpolator(Motion.emphasized).withLayer()
+            .withEndAction {
+                to.alpha = 1f
+                fly.animate().alpha(0f).setDuration(120).withEndAction { overlay.removeView(fly) }.start()
+            }.start()
+    }
+
+    /** Opens Now Playing with the cover flying from [from] (e.g. the Home card). */
+    fun openNowPlayingFrom(from: ImageView) {
+        if (currentTab == Tab.NOW) return
+        val previous = current
+        currentTab = Tab.NOW
+        val next = stackFor(Tab.NOW).last()
+        transition(previous, next, Kind.FADE)
+        rail.select(Tab.NOW, true)
+        next.view.post { flyCover(from, nowPlaying.coverView(), up = true) }
+    }
 
     private enum class Kind { NONE, FADE, PUSH, POP, FLY_UP, FLY_DOWN }
 
@@ -437,8 +478,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             BeeEvents.cheatCode.collect {
                 toast("Roll out!", C.BEE)
-                val all = withContext(Dispatchers.IO) { Library.allTracks() }
-                if (all.isNotEmpty()) PlayerHub.play(all, 0, PlayContext("Roll out! — everything", null), shuffle = true)
+                shuffleEverything("Roll out! — everything")
             }
         }
         lifecycleScope.launch { Prefs.changes.collect { applyAccent(accent, animate = true) } }
@@ -534,6 +574,13 @@ class MainActivity : ComponentActivity() {
         ) { sheetOpen = false }
     }
 
+    fun shuffleEverything(label: String = "Everything, shuffled") {
+        lifecycleScope.launch {
+            val all = withContext(Dispatchers.IO) { Library.allTracks() }
+            if (all.isEmpty()) toast("No songs found yet") else PlayerHub.play(all, 0, PlayContext(label, null), shuffle = true)
+        }
+    }
+
     fun playFolder(dir: File, shuffle: Boolean, recursive: Boolean = true) {
         lifecycleScope.launch {
             val tracks = FolderRepo.tracksFor(dir, recursive)
@@ -596,6 +643,13 @@ class MainActivity : ComponentActivity() {
         Volumes.refresh()
         Indexer.scanAll()
         Library.changed()
+        // Freshly granted storage access can take a moment to apply to a running process.
+        lifecycleScope.launch {
+            repeat(4) {
+                kotlinx.coroutines.delay(2_500)
+                if (Volumes.all.value.any { it.id !in Prefs.scannedVolumes }) { Volumes.refresh(); Indexer.scanAll() }
+            }
+        }
     }
 
     /** "Open with" from a file manager: play that file's folder starting from it. */

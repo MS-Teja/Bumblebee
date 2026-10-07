@@ -14,6 +14,8 @@ import com.teja.bumblebee.R
 import com.teja.bumblebee.art.ArtLoader
 import com.teja.bumblebee.data.FolderInfo
 import com.teja.bumblebee.data.Library
+import com.teja.bumblebee.data.Prefs
+import com.teja.bumblebee.storage.FolderRepo
 import com.teja.bumblebee.eggs.EasterEggs
 import com.teja.bumblebee.index.Indexer
 import com.teja.bumblebee.playback.PlayerHub
@@ -122,7 +124,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
             gravity = Gravity.CENTER_VERTICAL
             addView(cardCover, linear(100.u, 100.u, r = 22.u))
             addView(texts, linear(0, WRAP, 1f, r = 18.u))
-            pressable(0.98f) { host.showTab(Tab.NOW) }
+            pressable(0.98f) { host.openNowPlayingFrom(cardCover) }
         }
         val prev = CircleButton(ctx, R.drawable.ic_prev, 76, 30, 0x14FFFFFF, C.TEXT).apply { pressable { PlayerHub.prev() } }
         cardPlay = PlayPauseView(ctx, 40).apply { pressable { PlayerHub.toggle() } }
@@ -191,9 +193,9 @@ class HomeScreen(host: MainActivity) : Screen(host) {
             Data(
                 Library.totalTracks(),
                 vols.map { v -> Library.volumeStats(v.id).let { Triple(v, it.first, it.second) } },
-                Library.recentFolders(12),
-                Library.mostPlayedFolders(12),
-                Library.newestFolders(12),
+                tidy(Library.recentFolders(12)),
+                tidy(Library.mostPlayedFolders(12)),
+                tidy(Library.newestFolders(12)),
             )
         }
         stats.text = when {
@@ -203,7 +205,8 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         }
         renderSources(d.sources)
         sections.removeAllViews()
-        fun section(title: String, folders: List<FolderInfo>) {
+        fun section(title: String, raw: List<FolderInfo>) {
+            val folders = raw
             if (folders.isEmpty()) return
             sections.addView(sectionLabel(ctx, title), linear(MATCH, WRAP, t = 28.u))
             val rv = RecyclerView(ctx).apply {
@@ -212,10 +215,10 @@ class HomeScreen(host: MainActivity) : Screen(host) {
                 itemAnimator = null
                 adapter = FolderCardAdapter(
                     big = true,
-                    onOpen = { host.openFolder(it.path) },
-                    onPlay = { host.playFolder(File(it.path), shuffle = false, recursive = false) },
+                    onOpen = { item, art -> host.openFolder(item.path, shared = art) },
+                    onPlay = { host.playFolder(File(it.path), shuffle = false) },
                     onLong = { host.showFolderActions(it.path, it.name) },
-                ).apply { items = folders.map { f -> FolderCardItem(f.path, f.name, Fmt.count(f.total, "song")) } }
+                ).apply { items = folders.map { f -> FolderCardItem(f.path, FolderRepo.contextualName(f.path), Fmt.count(f.total, "song")) } }
             }
             // Fixed-width cards in a horizontal row.
             rv.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
@@ -227,6 +230,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         section("Recent folders", d.recent)
         section("Most played", d.most.filter { m -> d.recent.take(4).none { it.path == m.path } })
         section("Recently added", d.newest)
+        sections.post { if (!sectionsShown) { sectionsShown = true; staggerSections() } }
 
         emptyHost.removeAllViews()
         if (d.total == 0 && !indexing) {
@@ -238,6 +242,28 @@ class HomeScreen(host: MainActivity) : Screen(host) {
             )
         }
         if (!built) { built = true; body.enter(dy = 16f.u, duration = 320) }
+    }
+
+    private var sectionsShown = false
+
+    /** Each section rises in a beat after the previous one, only the first time. */
+    private fun staggerSections() {
+        for (i in 0 until sections.childCount) sections.getChildAt(i).enter(dy = 18f.u, delay = 60L * i, duration = 300)
+    }
+
+    /**
+     * One card per piece of music: if a folder and its own subfolder both qualify (Road Trip and
+     * Road Trip/Monsoon), keep only the outer one — its count already includes the inner songs.
+     * Hidden folders are dropped too.
+     */
+    private fun tidy(list: List<FolderInfo>): List<FolderInfo> {
+        val hidden = Prefs.excluded
+        val disc = Regex("^(cd|disc|disk)\\s*\\d+$", RegexOption.IGNORE_CASE)
+        // Multi-disc albums: "Abbey Road/CD1" and "Abbey Road/CD2" become one "Abbey Road" card.
+        val rolled = list.map { f -> if (disc.matches(f.name.trim())) Library.folder(f.path.substringBeforeLast('/')) ?: f else f }
+            .distinctBy { it.path }
+        val visible = rolled.filter { f -> hidden.none { f.path == it || f.path.startsWith("$it/") } }
+        return visible.filter { f -> visible.none { o -> o !== f && f.path.startsWith(o.path + "/") } }
     }
 
     private fun renderSources(list: List<Triple<Volume, Int, Int>>) {
@@ -280,10 +306,19 @@ class HomeScreen(host: MainActivity) : Screen(host) {
                 setPadding(18.u, 0, 18.u, 0)
                 addView(art, linear(80.u, 80.u, r = 18.u))
                 addView(texts, linear(0, WRAP, 1f))
-                pressable(0.98f, onLongClick = { host.showFolderActions(v.path, v.label) }) { host.openFolder(v.path) }
+                pressable(0.98f, onLongClick = { host.showFolderActions(v.path, v.label) }) { host.openFolder(v.path, shared = art) }
+            }
+            if (list.size == 1 && songs > 0) {
+                // A single source gets the full width plus direct Play / Shuffle.
+                cardView.addView(com.teja.bumblebee.ui.design.PillButton(ctx, "Play", R.drawable.ic_play, 64, true, host.accent.accent).apply {
+                    pressable { host.playFolder(v.root, shuffle = false) }
+                }, linear(WRAP, 64.u, l = 20.u))
+                cardView.addView(com.teja.bumblebee.ui.design.CircleButton(ctx, R.drawable.ic_shuffle, 64, 26, 0x14FFFFFF, C.TEXT).apply {
+                    pressable { host.playFolder(v.root, shuffle = true) }
+                    contentDescription = "Shuffle everything"
+                }, linear(64.u, 64.u, l = 12.u))
             }
             sourcesRow.addView(cardView, linear(0, MATCH, 1f, r = if (i < list.lastIndex) 16.u else 0))
         }
-        if (list.size == 1) sourcesRow.addView(View(ctx), linear(0, MATCH, 1f, l = 16.u))
     }
 }

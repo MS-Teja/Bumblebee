@@ -123,19 +123,22 @@ object ArtLoader {
     }
 
     /** Folder art: a mosaic of its most common albums, or a cassette label when it has no art at all. */
-    fun bindFolder(view: ImageView, path: String, label: String, size: Size) {
+    fun bindFolder(view: ImageView, path: String, label: String, size: Size, initial: android.graphics.drawable.Drawable? = null) {
         (view.getTag(R.id.art_job) as? Job)?.cancel()
         val key = "folder:$path|${size.name}"
         if (view.getTag(R.id.art_key) == key && view.drawable != null) return
         view.setTag(R.id.art_key, key)
         memory.get(key)?.let { view.setImageBitmap(it); return }
-        view.setImageDrawable(CassetteCover(label, path))
+        val hadInitial = initial != null
+        view.setImageDrawable(initial ?: CassetteCover(label, path))
         view.setTag(R.id.art_job, scope.launch {
             val bmp = folderMosaic(path, label, size) ?: return@launch
             if (view.getTag(R.id.art_key) != key) return@launch
             view.setImageBitmap(bmp)
-            view.alpha = 0.4f
-            view.animate().alpha(1f).setDuration(180).start()
+            if (!hadInitial) {
+                view.alpha = 0.4f
+                view.animate().alpha(1f).setDuration(180).start()
+            }
         })
     }
 
@@ -144,9 +147,9 @@ object ArtLoader {
         if (tracks.isEmpty()) return null
         val loaded = tracks.map { t -> t to art(t, Size.SMALL) }
         val real = loaded.mapNotNull { it.second }
-        if (real.isEmpty() && tracks.map { it.album }.distinct().size <= 1) return null
-        // Real covers first; generated ones only fill the gaps.
-        val tiles: List<Any> = (real + loaded.filter { it.second == null }.map { placeholder(it.first) }).take(4)
+        // Only real covers make a mosaic; art-less folders keep their cassette label (calmer than letters).
+        if (real.isEmpty()) return null
+        val tiles: List<Any> = real.take(4)
         val bmp = withContext(io) { Mosaic.compose(tiles, if (size == Size.LARGE) 480 else 240) }
         memory.put("folder:$path|${size.name}", bmp)
         return bmp

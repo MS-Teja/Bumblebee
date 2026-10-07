@@ -25,6 +25,8 @@ abstract class Screen(val host: MainActivity) {
     open val showsMiniPlayer: Boolean = true
     open val backdropIntensity: Float = 0.42f
     open val tab: Tab = Tab.HOME
+    /** The big artwork a shared-element flight lands on when this screen is opened from a card. */
+    open val heroArt: android.widget.ImageView? get() = null
 
     abstract fun build(): View
     open fun onShow() {}

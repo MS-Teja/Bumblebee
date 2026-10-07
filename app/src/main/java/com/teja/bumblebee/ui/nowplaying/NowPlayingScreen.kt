@@ -36,6 +36,8 @@ import com.teja.bumblebee.ui.design.text
 import com.teja.bumblebee.ui.design.u
 import com.teja.bumblebee.ui.shell.Screen
 import com.teja.bumblebee.ui.shell.Tab
+import com.teja.bumblebee.ui.shell.enter
+import com.teja.bumblebee.ui.design.roundCorners
 import com.teja.bumblebee.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,6 +75,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     private lateinit var upNext: LinearLayout
     private lateinit var upNextText: TextView
     private lateinit var badge: TextView
+    private lateinit var empty: LinearLayout
 
     private val handler = Handler(Looper.getMainLooper())
     private var state = PlayerHub.State()
@@ -170,6 +173,34 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             alpha = 0f
         }
         info.addView(badge, frame(WRAP, WRAP, Gravity.END, t = 74.u))
+
+        // Nothing queued yet: a calm invitation instead of dead controls.
+        empty = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(48.u, 0, 40.u, 0)
+            val cassette = android.widget.ImageView(ctx).apply {
+                setImageDrawable(com.teja.bumblebee.art.CassetteCover("Mixtape Vol. 1", "bumblebee"))
+                roundCorners(30)
+            }
+            addView(cassette, linear(420.u, 420.u, r = 56.u))
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(ctx.text("Nothing playing yet", 46f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }, linear(MATCH, WRAP))
+                addView(ctx.text("Pick a folder, or let Bee shuffle everything on your drives.", 20f, Fonts.semiBold, C.TEXT2, lines = 3), linear(MATCH, WRAP, t = 12.u))
+                addView(LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(com.teja.bumblebee.ui.design.PillButton(ctx, "Shuffle everything", R.drawable.ic_shuffle, 72, true, C.BEE).apply {
+                        pressable { host.shuffleEverything() }
+                    }, linear(WRAP, 72.u, r = 14.u))
+                    addView(com.teja.bumblebee.ui.design.PillButton(ctx, "Browse", R.drawable.ic_folder, 72, false, C.BEE).apply {
+                        pressable { host.showTab(Tab.HOME) }
+                    }, linear(WRAP, 72.u))
+                }, linear(WRAP, WRAP, t = 30.u))
+            }, linear(0, WRAP, 1f))
+            visibility = View.GONE
+        }
+        surface.addView(empty, frame(MATCH, MATCH))
 
         wireGestures()
         relayout()
@@ -281,6 +312,14 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     private fun render(s: PlayerHub.State) {
         val old = state
         state = s
+        val nothing = s.current == null
+        if (nothing != (empty.visibility == View.VISIBLE)) {
+            empty.visibility = if (nothing) View.VISIBLE else View.GONE
+            carousel.visibility = if (nothing) View.INVISIBLE else View.VISIBLE
+            info.visibility = if (nothing) View.INVISIBLE else View.VISIBLE
+            if (nothing) empty.enter(dy = 16f.u)
+        }
+        if (nothing) return
         carousel.bind(s.prev, s.current, s.next)
         if (!carousel.isMoving) {
             trackText.show(s.current)

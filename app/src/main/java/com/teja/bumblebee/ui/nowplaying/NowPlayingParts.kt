@@ -55,7 +55,7 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
     private var cur = Slot()
     private var inc = Slot()
     private var incDir = 0
-    private val shift = 210f.u
+    private val shift = 160f.u
     var accent = C.BEE
         set(v) { field = v; cur.artist.setTextColor(v); inc.artist.setTextColor(v) }
 
@@ -89,11 +89,13 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
             incDir = dir
         }
         val a = abs(p)
+        // Outgoing text leaves with the card; incoming text settles in from a short distance.
         cur.root.translationX = p * shift
-        cur.root.alpha = max(0f, 1f - a * 2.1f)
-        inc.root.translationX = if (dir >= 0) (1f + p.coerceAtMost(0f)) * shift else -(1f - p) * shift
-        inc.root.alpha = if (dir == 0) 0f else max(0f, (a - 0.36f) / 0.64f)
-        cur.root.translationY = 0f
+        cur.root.alpha = max(0f, 1f - a * 2.2f)
+        val e = max(0f, (a - 0.34f) / 0.66f)
+        inc.root.translationX = -kotlin.math.sign(p) * (1f - e) * 36f.u
+        inc.root.translationY = (1f - e) * 10f.u
+        inc.root.alpha = if (dir == 0) 0f else e
     }
 
     private fun Slot.accentFix() = artist.setTextColor(accent)
@@ -106,6 +108,7 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
         incDir = 0
         cur.root.alpha = 1f
         cur.root.translationX = 0f
+        cur.root.translationY = 0f
         inc.root.alpha = 0f
     }
 }

@@ -445,10 +445,27 @@ class Onboarding(private val host: MainActivity, private val layer: FrameLayout,
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
         col.addView(BeeLogo(ctx), linear(120.u, 120.u))
         col.addView(ctx.text("Your music,\non the big screen", 52f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f; setLineSpacing(0f, 1.05f) }, linear(MATCH, WRAP, t = 34.u))
-        col.addView(ctx.text("Bumblebee plays the songs on this unit and on any pendrive you plug in.\nIt needs permission to read your files. Nothing ever leaves the car.", 20f, Fonts.semiBold, C.TEXT2, lines = 3).apply { setLineSpacing(0f, 1.25f) }, linear(MATCH, WRAP, t = 18.u))
+        col.addView(ctx.text("Bumblebee plays the songs on this unit and on any pendrive you plug in. It needs permission to read your files. Nothing ever leaves the car.", 20f, Fonts.semiBold, C.TEXT2, lines = 4).apply { setLineSpacing(0f, 1.25f) }, linear(MATCH, WRAP, t = 18.u))
         col.addView(PillButton(ctx, "Allow access", R.drawable.ic_check, 80, true, C.BEE).apply { pressable { host.requestStorage() } }, linear(WRAP, 80.u, t = 36.u))
         col.addView(ctx.label("Rewinding the tapes happens next", C.TEXT3, 14f), linear(WRAP, WRAP, t = 18.u))
-        root.addView(col, frame(760.u, MATCH, Gravity.START, l = 120.u))
+        root.addView(col, frame(640.u, MATCH, Gravity.START, l = 110.u))
+
+        // A small deck of mixtapes dealt onto the right side, echoing the Now Playing card deck.
+        val deck = FrameLayout(ctx)
+        val cards = listOf(
+            com.teja.bumblebee.art.GeneratedCover("Night Drive", "Night Drive", "night") to -11f,
+            com.teja.bumblebee.art.GeneratedCover("Road Trip", "Road Trip", "road") to 8f,
+            com.teja.bumblebee.art.CassetteCover("Mixtape Vol. 1", "bee") to -2f,
+        )
+        cards.forEachIndexed { i, (d, rot) ->
+            val iv = ImageView(ctx).apply { setImageDrawable(d); roundCorners(28) }
+            deck.addView(iv, frame(320.u, 320.u, Gravity.CENTER, l = (i - 1) * 70.u))
+            iv.rotation = rot
+            iv.alpha = 0f
+            iv.translationY = 60f.u
+            iv.animate().alpha(1f).translationY(0f).rotation(rot).setStartDelay(150L + i * 120L).setDuration(Motion.ms(520)).setInterpolator(Motion.emphasized).start()
+        }
+        root.addView(deck, frame(560.u, MATCH, Gravity.END, r = 40.u))
         layer.addView(root, frame(MATCH, MATCH))
         poll()
     }

@@ -27,6 +27,7 @@ import com.teja.bumblebee.ui.browse.HeroPane
 import com.teja.bumblebee.ui.browse.TrackAdapter
 import com.teja.bumblebee.ui.browse.TrackItem
 import com.teja.bumblebee.ui.browse.emptyState
+import com.teja.bumblebee.ui.browse.staggerIn
 import com.teja.bumblebee.ui.design.C
 import com.teja.bumblebee.ui.design.Fonts
 import com.teja.bumblebee.ui.design.MATCH
@@ -125,13 +126,13 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
                 Page.ALBUMS -> {
                     val albums = withContext(Dispatchers.IO) { Library.albums() }
                     list.layoutManager = GridLayoutManager(ctx, 5)
-                    list.adapter = AlbumAdapter(albums) { a -> host.openDetail(DetailScreen.album(host, a.name, a.sample.albumArtist)) }
+                    list.adapter = AlbumAdapter(albums) { a, art -> host.openDetail(DetailScreen.album(host, a.name, a.sample.albumArtist, art.drawable), art) }
                     if (albums.isEmpty()) showEmpty()
                 }
                 Page.ARTISTS -> {
                     val artists = withContext(Dispatchers.IO) { Library.artists() }
                     list.layoutManager = LinearLayoutManager(ctx)
-                    list.adapter = ArtistAdapter(artists) { a -> host.openDetail(DetailScreen.artist(host, a.name)) }
+                    list.adapter = ArtistAdapter(artists) { a, art -> host.openDetail(DetailScreen.artist(host, a.name, art.drawable), art) }
                     if (artists.size > 40) addRail { i -> artists.getOrNull(i)?.name }
                     if (artists.isEmpty()) showEmpty()
                 }
@@ -152,7 +153,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
                     if (songs.isEmpty()) showEmpty()
                 }
             }
-            if (animate) list.enter(dx = 24f.u, duration = 240)
+            list.staggerIn()
         }
     }
 
@@ -176,7 +177,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
 
     // ---------------------------------------------------------------- adapters
 
-    private class AlbumAdapter(private val albums: List<Album>, private val onOpen: (Album) -> Unit) : RecyclerView.Adapter<AlbumAdapter.H>() {
+    private class AlbumAdapter(private val albums: List<Album>, private val onOpen: (Album, ImageView) -> Unit) : RecyclerView.Adapter<AlbumAdapter.H>() {
         override fun getItemCount() = albums.size
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = H(parent.context)
         override fun onBindViewHolder(h: H, position: Int) = h.bind(albums[position])
@@ -191,7 +192,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
                     addView(title, linear(MATCH, WRAP, t = 10.u))
                     addView(sub, linear(MATCH, WRAP, t = 2.u))
                     layoutParams = RecyclerView.LayoutParams(MATCH, WRAP).apply { setMargins(0, 0, 18.u, 22.u) }
-                    pressable(0.96f) { albums.getOrNull(bindingAdapterPosition)?.let(onOpen) }
+                    pressable(0.96f) { albums.getOrNull(bindingAdapterPosition)?.let { onOpen(it, art) } }
                 }
             }
             fun bind(a: Album) {
@@ -202,7 +203,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
         }
     }
 
-    private class ArtistAdapter(private val artists: List<Artist>, private val onOpen: (Artist) -> Unit) : RecyclerView.Adapter<ArtistAdapter.H>() {
+    private class ArtistAdapter(private val artists: List<Artist>, private val onOpen: (Artist, ImageView) -> Unit) : RecyclerView.Adapter<ArtistAdapter.H>() {
         override fun getItemCount() = artists.size
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = H(parent.context)
         override fun onBindViewHolder(h: H, position: Int) = h.bind(artists[position])
@@ -221,7 +222,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
                         addView(name, linear(MATCH, WRAP)); addView(sub, linear(MATCH, WRAP, t = 3.u))
                     }, linear(0, WRAP, 1f))
                     layoutParams = RecyclerView.LayoutParams(MATCH, 84.u)
-                    pressable(0.98f) { artists.getOrNull(bindingAdapterPosition)?.let(onOpen) }
+                    pressable(0.98f) { artists.getOrNull(bindingAdapterPosition)?.let { onOpen(it, art) } }
                 }
             }
             fun bind(a: Artist) {
@@ -245,8 +246,10 @@ class DetailScreen private constructor(
     private val round: Boolean,
     private val loader: suspend () -> List<Track>,
     private val showArtInRows: Boolean,
+    private val initialArt: android.graphics.drawable.Drawable?,
 ) : Screen(host) {
     override val tab = Tab.LIBRARY
+    override val heroArt: ImageView? get() = if (::hero.isInitialized) hero.art else null
 
     private lateinit var hero: HeroPane
     private lateinit var tracksAdapter: TrackAdapter
@@ -256,6 +259,7 @@ class DetailScreen private constructor(
         val root = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         hero = HeroPane(ctx, round)
         hero.title.text = titleText
+        initialArt?.let { hero.art.setImageDrawable(it.constantState?.newDrawable() ?: it) }
         hero.play.pressable { if (tracks.isNotEmpty()) PlayerHub.play(tracks, 0, PlayContext(titleText, null)) }
         hero.shuffle.pressable { if (tracks.isNotEmpty()) PlayerHub.play(tracks, 0, PlayContext(titleText, null), shuffle = true) }
         root.addView(hero, linear(380.u, MATCH))
@@ -291,8 +295,8 @@ class DetailScreen private constructor(
                 Fmt.count(tracks.size, "song"),
                 if (dur > 0) Fmt.duration(dur) else null,
             ).joinToString(" · ")
-            tracks.firstOrNull()?.let { ArtLoader.bind(hero.art, it, ArtLoader.Size.LARGE) }
-            list.enter(dy = 16f.u, duration = 300)
+            tracks.firstOrNull()?.let { ArtLoader.bind(hero.art, it, ArtLoader.Size.LARGE, fade = initialArt == null) }
+            list.staggerIn()
         }
         return root
     }
@@ -303,10 +307,10 @@ class DetailScreen private constructor(
     }
 
     companion object {
-        fun album(host: MainActivity, album: String, artist: String?) =
-            DetailScreen(host, album, round = false, loader = { Library.albumTracks(album, artist) }, showArtInRows = false)
+        fun album(host: MainActivity, album: String, albumArtist: String?, art: android.graphics.drawable.Drawable? = null) =
+            DetailScreen(host, album, round = false, loader = { Library.albumTracks(album, albumArtist) }, showArtInRows = false, initialArt = art)
 
-        fun artist(host: MainActivity, artist: String) =
-            DetailScreen(host, artist, round = true, loader = { Library.artistTracks(artist) }, showArtInRows = true)
+        fun artist(host: MainActivity, artist: String, art: android.graphics.drawable.Drawable? = null) =
+            DetailScreen(host, artist, round = true, loader = { Library.artistTracks(artist) }, showArtInRows = true, initialArt = art)
     }
 }

@@ -42,12 +42,18 @@ data class FolderListing(
     val folders: List<FolderEntry>,
     val tracks: List<Track>,
     val playlists: List<File>,
-)
+    /** False when the folder is gone (deleted, or its drive was pulled). */
+    val exists: Boolean = true,
+) {
+    /** Songs below this folder (not counting the ones directly in it); -1 when unknown. */
+    val nestedSongs: Int get() = if (folders.any { it.songs < 0 }) -1 else folders.sumOf { it.songs }
+}
 
 /** Lists folders live from the file system (no index needed), enriched with whatever the index knows. */
 object FolderRepo {
 
     suspend fun list(dir: File): FolderListing = withContext(Dispatchers.IO) {
+        if (!dir.isDirectory) return@withContext FolderListing(dir, emptyList(), emptyList(), emptyList(), exists = false)
         val volume = Volumes.forPath(dir.path)
         val atRoot = volume != null && volume.path == dir.path
         val indexed = volume != null && volume.id in Prefs.scannedVolumes
@@ -60,6 +66,8 @@ object FolderRepo {
             .mapNotNull { sub ->
                 val info = known[sub.path]
                 if (indexed && (info == null || info.total == 0)) return@mapNotNull null
+                // Not indexed yet (first run, fresh USB): a quick bounded look for any audio inside.
+                if (!indexed && !hasAudio(sub)) return@mapNotNull null
                 collapse(sub, info?.total ?: -1, info?.durationMs ?: 0, indexed)
             }
             .sortedWith(compareBy(NaturalOrder) { it.name })
@@ -74,6 +82,31 @@ object FolderRepo {
 
         val playlists = children.filter { it.isFile && AudioFormats.isPlaylist(it.name) }.sortedWith(compareBy(NaturalOrder) { it.name })
         FolderListing(dir, folders, Library.sortFolder(tracks), playlists)
+    }
+
+    /** True if [dir] has an audio file within a few levels; gives up (true) after [budget] entries. */
+    fun hasAudio(dir: File, budget: Int = 1500): Boolean {
+        var seen = 0
+        val queue = ArrayDeque<Pair<File, Int>>().apply { add(dir to 0) }
+        while (queue.isNotEmpty()) {
+            val (d, depth) = queue.removeFirst()
+            val kids = d.listFiles() ?: continue
+            for (f in kids) {
+                if (++seen > budget) return true
+                if (f.isFile) { if (AudioFormats.isAudio(f.name)) return true }
+                else if (depth < 4 && !AudioFormats.ignoredDir(f, false)) queue.addLast(f to depth + 1)
+            }
+        }
+        return false
+    }
+
+    /** Folder names that mean nothing on their own ("CD1", "Disc 2", "Songs") get their parent as context. */
+    fun contextualName(path: String): String {
+        val name = path.substringAfterLast('/')
+        val generic = Regex("^(cd|disc|disk|vol|volume|part)\\s*\\d+$|^(songs|music|mp3|audio|new folder|misc|others?)$", RegexOption.IGNORE_CASE)
+        if (!generic.matches(name.trim())) return name
+        val parent = path.substringBeforeLast('/').substringAfterLast('/')
+        return if (parent.isBlank()) name else "$parent · $name"
     }
 
     /** Follows chains of folders that hold nothing but a single subfolder. */
