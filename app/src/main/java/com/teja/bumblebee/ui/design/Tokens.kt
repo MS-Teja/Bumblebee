@@ -8,74 +8,118 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Design units. The whole UI is designed on a 1280×720 canvas; one unit is one design pixel scaled to
- * the real screen, so the layout matches the prototype whatever density the head unit reports.
+ * Design units. The UI is designed on a 1280×720 canvas (720×1280 in portrait); one unit is one
+ * design pixel scaled to the real window, so the car layout matches the prototype whatever density
+ * the head unit reports. Phones are held closer than a dashboard screen, so there a unit is pinned
+ * to a physical size instead and the canvas simply becomes narrower (≈530 units on a typical phone).
  */
 object D {
     var scale = 1f
         private set
-    /** Real window size in pixels. */
+    /** Usable window size in pixels (inside the system bars when they are shown). */
     var screenW = 1280
         private set
     var screenH = 720
         private set
-    /** Portrait panels (e.g. 768×1024 "tablet-style" head units) get stacked layouts and a bottom bar. */
+    /** Portrait windows get stacked layouts and a bottom bar. */
     var portrait = false
         private set
-    /** The window in design units. The short side is the design canvas (720 in landscape, 720 wide
-     *  in portrait); the long side is whatever the screen gives (1280 on 16:9, 1920 on ultrawide…). */
+    /** Phone-like device: physical sizing, system bars visible, a full-screen player in portrait. */
+    var handheld = false
+        private set
+    /** The usable window in design units. */
     var designW = 1280
         private set
     var designH = 720
         private set
 
-    /** Width of the navigation rail (landscape) or height of the bottom bar (portrait), design px. */
+    /** System bar / cutout insets in real pixels; the shell pads by them (all 0 in full screen). */
+    var insetLeft = 0
+        private set
+    var insetTop = 0
+        private set
+    var insetRight = 0
+        private set
+    var insetBottom = 0
+        private set
+
+    /** Width of the navigation rail (landscape), design px. */
     const val RAIL = 132
-    const val BAR = 112
+    /** Height of the bottom bar (portrait), design px. */
+    val BAR: Int get() = if (handheld) 100 else 112
+    /** Height of the mini-player, design px. */
+    val MINI: Int get() = if (handheld) 96 else 104
 
     /** Content area (excluding rail / bottom bar) in design px. */
     val contentW: Int get() = if (portrait) designW else designW - RAIL
     val contentH: Int get() = if (portrait) designH - BAR else designH
+    /** Narrow content (phones in portrait): screens drop secondary buttons and stack rows. */
+    val narrow: Boolean get() = contentW < 700
+
+    /** Real pixels a scrolling list must keep clear at the bottom (bottom bar, mini-player, nav bar). */
+    fun bottomChrome(mini: Boolean): Int =
+        (if (portrait) BAR.u + insetBottom else 0) + (if (mini) MINI.u else 0)
 
     /** First guess from the application context; [init] with the activity refines it. */
     fun init(context: Context, fullScreen: Boolean = true) {
+        handheld = com.teja.bumblebee.util.Device.isHandheld(context)
         val m = android.util.DisplayMetrics()
-        if (fullScreen) {
-            @Suppress("DEPRECATION")
-            context.getSystemService(android.view.WindowManager::class.java).defaultDisplay.getRealMetrics(m)
-        } else {
-            m.setTo(context.resources.displayMetrics)
-        }
-        apply(m.widthPixels, m.heightPixels)
+        @Suppress("DEPRECATION")
+        context.getSystemService(android.view.WindowManager::class.java).defaultDisplay.getRealMetrics(m)
+        setInsets(0, 0, 0, 0)
+        apply(m.widthPixels, m.heightPixels, m.density)
     }
 
     /**
      * Sizes against the activity's real window: the full window when the bars are hidden, the area
-     * inside them otherwise, and the split-screen pane when the head unit runs apps side by side.
+     * inside them otherwise, and the split-screen pane when apps run side by side.
      */
     fun init(activity: android.app.Activity, fullScreen: Boolean) {
+        handheld = com.teja.bumblebee.util.Device.isHandheld(activity)
+        val density = activity.resources.displayMetrics.density
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             val wm = activity.windowManager.currentWindowMetrics
             val b = wm.bounds
-            if (fullScreen) {
-                apply(b.width(), b.height())
+            val ins = if (fullScreen) {
+                wm.windowInsets.getInsets(android.view.WindowInsets.Type.displayCutout())
             } else {
-                val ins = wm.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars())
-                apply(b.width() - ins.left - ins.right, b.height() - ins.top - ins.bottom)
+                wm.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
             }
-        } else if (fullScreen && !activity.isInMultiWindowMode) {
-            init(activity as Context, true)
-        } else {
+            setInsets(ins.left, ins.top, ins.right, ins.bottom)
+            apply(b.width() - ins.left - ins.right, b.height() - ins.top - ins.bottom, density)
+        } else if (activity.isInMultiWindowMode) {
             val m = activity.resources.displayMetrics
-            apply(m.widthPixels, m.heightPixels)
+            setInsets(0, 0, 0, 0)
+            apply(m.widthPixels, m.heightPixels, density)
+        } else {
+            @Suppress("DEPRECATION")
+            val display = activity.windowManager.defaultDisplay
+            val real = android.graphics.Point().also { @Suppress("DEPRECATION") display.getRealSize(it) }
+            if (fullScreen) {
+                setInsets(0, 0, 0, 0)
+            } else {
+                // Pre-11: the app area excludes the navigation bar; the status bar height is a resource.
+                val app = android.graphics.Point().also { @Suppress("DEPRECATION") display.getSize(it) }
+                val res = activity.resources
+                val id = res.getIdentifier("status_bar_height", "dimen", "android")
+                val status = if (id > 0) res.getDimensionPixelSize(id) else 0
+                setInsets(0, status, (real.x - app.x).coerceAtLeast(0), (real.y - app.y).coerceAtLeast(0))
+            }
+            apply(real.x - insetLeft - insetRight, real.y - insetTop - insetBottom, density)
         }
     }
 
-    private fun apply(w: Int, h: Int) {
+    private fun setInsets(l: Int, t: Int, r: Int, b: Int) {
+        insetLeft = l; insetTop = t; insetRight = r; insetBottom = b
+    }
+
+    private fun apply(w: Int, h: Int, density: Float) {
         screenW = w
         screenH = h
         portrait = h > w
-        scale = if (portrait) min(w / 720f, h / 1280f) else min(w / 1280f, h / 720f)
+        val fit = if (portrait) min(w / 720f, h / 1280f) else min(w / 1280f, h / 720f)
+        // Phones: one unit ≈ 0.78dp, so row text lands at 15–16sp and buttons stay thumb-sized.
+        scale = if (handheld) max(fit, density * 0.78f) else fit
         designW = (w / scale).roundToInt()
         designH = (h / scale).roundToInt()
     }

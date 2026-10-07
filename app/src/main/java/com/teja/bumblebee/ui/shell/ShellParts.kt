@@ -49,7 +49,14 @@ import kotlin.math.abs
  * Navigation: a driver-side rail in landscape, a bottom bar in portrait. Small clock, four
  * destinations with a spring-sliding pill, then settings and exit.
  */
-class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLayout(ctx) {
+class Rail(
+    ctx: Context,
+    private val horizontal: Boolean,
+    private val showClock: Boolean = true,
+    showExit: Boolean = true,
+    onSelect: (Tab) -> Unit,
+    onExit: () -> Unit,
+) : FrameLayout(ctx) {
 
     private data class Item(val tab: Tab, val root: LinearLayout, val icon: ImageView, val label: TextView?)
 
@@ -66,16 +73,18 @@ class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Uni
 
     init {
         // The bottom bar sits over scrolling content, so it must be solid; the side rail can stay airy.
-        setBackgroundColor(if (horizontal) 0xFA0B0E12.toInt() else 0x09FFFFFF)
+        setBackgroundColor(if (horizontal) 0xFF0B0E12.toInt() else 0x09FFFFFF)
+        isClickable = horizontal
         val hair = View(ctx).apply { setBackgroundColor(C.HAIR) }
         addView(hair, if (horizontal) frame(MATCH, 1.u, Gravity.TOP) else frame(1.u, MATCH, Gravity.START))
         pill.background = pillBg
-        addView(pill, if (horizontal) frame(150.u, 88.u, Gravity.CENTER_VERTICAL) else frame(104.u, 88.u, l = 14.u))
+        pill.alpha = 0f
+        val itemH = if (horizontal) 80 else 88
+        addView(pill, if (horizontal) frame(150.u, itemH.u, Gravity.CENTER_VERTICAL) else frame(104.u, 88.u, l = 14.u))
         strip.orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         strip.gravity = Gravity.CENTER
-        if (horizontal) strip.setPadding(24.u, 0, 16.u, 0) else strip.setPadding(14.u, 22.u, 14.u, 18.u)
-        strip.addView(clock, if (horizontal) linear(80.u, WRAP) else linear(MATCH, WRAP, b = 22.u))
-        if (horizontal) strip.addView(View(ctx), linear(0, MATCH, 1f))
+        if (horizontal) strip.setPadding(16.u, 0, 16.u, 0) else strip.setPadding(14.u, 22.u, 14.u, 18.u)
+        if (showClock) strip.addView(clock, if (horizontal) linear(80.u, WRAP) else linear(MATCH, WRAP, b = 22.u))
         fun add(tab: Tab, @DrawableRes res: Int, title: String?) {
             val icon = ctx.icon(res, if (title != null) 30 else 28, C.alpha(C.TEXT, 0.78f))
             val label = title?.let { ctx.text(it, 14f, Fonts.bold, C.alpha(C.TEXT, 0.78f)).apply { gravity = Gravity.CENTER } }
@@ -88,27 +97,31 @@ class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Uni
                 contentDescription = title ?: tab.name.lowercase()
             }
             items += Item(tab, root, icon, label)
-            val main = title != null
+            val main = title != null || (horizontal && !showExit)
             strip.addView(root, when {
-                horizontal -> linear(if (main) 150.u else 76.u, 88.u)
+                // Bottom bar: the four destinations share the width evenly (fits any phone).
+                horizontal -> if (main) linear(0, itemH.u, 1f) else linear(76.u, itemH.u)
                 else -> linear(MATCH, if (main) 88.u else 64.u, b = 4.u)
             })
         }
+        if (horizontal && showClock) strip.addView(View(ctx), linear(0, MATCH, 0.4f))
         add(Tab.NOW, R.drawable.ic_music, "Playing")
         add(Tab.HOME, R.drawable.ic_home, "Home")
         add(Tab.LIBRARY, R.drawable.ic_library, "Library")
         add(Tab.SEARCH, R.drawable.ic_search, "Search")
-        strip.addView(View(ctx), if (horizontal) linear(0, MATCH, 1f) else linear(MATCH, 0, 1f))
-        add(Tab.SETTINGS, R.drawable.ic_settings, null)
-        val exit = ctx.icon(R.drawable.ic_exit, 28, C.alpha(C.TEXT, 0.6f))
-        val exitBox = FrameLayout(ctx).apply {
-            addView(exit, frame(28.u, 28.u, Gravity.CENTER))
-            contentDescription = "Exit to launcher"
-            pressable(0.9f) { onExit() }
+        strip.addView(View(ctx), if (horizontal) linear(0, MATCH, if (showClock) 0.4f else 0f) else linear(MATCH, 0, 1f))
+        add(Tab.SETTINGS, R.drawable.ic_settings, if (horizontal && !showExit) "Settings" else null)
+        if (showExit) {
+            val exit = ctx.icon(R.drawable.ic_exit, 28, C.alpha(C.TEXT, 0.6f))
+            val exitBox = FrameLayout(ctx).apply {
+                addView(exit, frame(28.u, 28.u, Gravity.CENTER))
+                contentDescription = "Exit to launcher"
+                pressable(0.9f) { onExit() }
+            }
+            strip.addView(exitBox, if (horizontal) linear(76.u, 88.u) else linear(MATCH, 64.u))
         }
-        strip.addView(exitBox, if (horizontal) linear(76.u, 88.u) else linear(MATCH, 64.u))
         addView(strip, frame(MATCH, MATCH))
-        tickClock()
+        if (showClock) tickClock()
     }
 
     private fun tickClock() {
@@ -130,7 +143,7 @@ class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Uni
             else if (horizontal) pill.translationX = target else pill.translationY = target
             pill.alpha = 1f
         }
-        if (item.root.width == 0) post { place() } else place()
+        if (item.root.width == 0 || isLayoutRequested) post { place() } else place()
         tint()
     }
 
@@ -153,7 +166,7 @@ class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Uni
 
 /** Persistent player on browse screens. Swipe the text to skip; tap or swipe up to open Now Playing. */
 @SuppressLint("ClickableViewAccessibility")
-class MiniPlayer(ctx: Context, private val onOpen: () -> Unit) : FrameLayout(ctx) {
+class MiniPlayer(ctx: Context, compact: Boolean = false, private val onOpen: () -> Unit) : FrameLayout(ctx) {
     val cover = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(16) }
     private val title = ctx.text("", 21f, Fonts.extraBold)
     private val artist = ctx.text("", 16f, Fonts.semiBold, C.TEXT2)
@@ -182,14 +195,17 @@ class MiniPlayer(ctx: Context, private val onOpen: () -> Unit) : FrameLayout(ctx
             gravity = Gravity.CENTER_VERTICAL
             setPadding(22.u, 0, 26.u, 0)
         }
-        row.addView(cover, linear(76.u, 76.u, r = 18.u))
+        // Narrow screens keep play and next only, so the title has room to read.
+        val art = if (compact) 68 else 76
+        row.setPadding((if (compact) 16 else 22).u, 0, (if (compact) 12 else 26).u, 0)
+        row.addView(cover, linear(art.u, art.u, r = (if (compact) 14 else 18).u))
         row.addView(textBox, linear(0, MATCH, 1f, r = 12.u))
         val prev = CircleButton(ctx, R.drawable.ic_prev, 72, 32, 0, C.TEXT).apply { pressable { onPrev?.invoke() } ; contentDescription = "Previous" }
         val next = CircleButton(ctx, R.drawable.ic_next, 72, 32, 0, C.TEXT).apply { pressable { onNext?.invoke() }; contentDescription = "Next" }
         playPause.pressable { onToggle?.invoke() }
         playPause.contentDescription = "Play or pause"
-        row.addView(prev, linear(72.u, 72.u))
-        row.addView(playPause, linear(80.u, 80.u, l = 6.u, r = 6.u))
+        if (!compact) row.addView(prev, linear(72.u, 72.u))
+        row.addView(playPause, linear(76.u, 76.u, l = 6.u, r = 6.u))
         row.addView(next, linear(72.u, 72.u))
         addView(row, frame(MATCH, MATCH))
         progress.setBackgroundColor(C.BEE)
@@ -334,7 +350,10 @@ class Toaster(private val layer: FrameLayout) {
             translationY = 24f.u
             elevation = 0f
         }
-        layer.addView(pill, frame(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, b = 132.u))
+        // Just above the mini-player (and the bottom bar / nav bar), wherever they are.
+        val dd = com.teja.bumblebee.ui.design.D
+        val bottom = dd.bottomChrome(mini = true) + (if (dd.portrait) 20.u else 28.u + dd.insetBottom)
+        layer.addView(pill, frame(WRAP, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, b = bottom))
         pill.animate().alpha(1f).translationY(0f).setDuration(Motion.ms(260)).setInterpolator(Motion.emphasized).withEndAction {
             pill.animate().alpha(0f).translationY(-10f.u).setStartDelay(1900).setDuration(Motion.ms(220)).withEndAction {
                 layer.removeView(pill)
@@ -380,7 +399,11 @@ class ActionSheet(private val layer: FrameLayout, title: String, subtitle: Strin
         }
         scrim.setOnClickListener { dismiss() }
         layer.addView(scrim, frame(MATCH, MATCH))
-        layer.addView(panel, frame(620.u, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+        val dd = com.teja.bumblebee.ui.design.D
+        // Clears the gesture / nav bar; full width on phones, a centred card on wide screens.
+        panel.setPadding(panel.paddingLeft, panel.paddingTop, panel.paddingRight, panel.paddingBottom + dd.insetBottom)
+        val w = if (dd.designW - 24 < 620) MATCH else 620.u
+        layer.addView(panel, frame(w, WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, l = if (w == MATCH) 8.u else 0, r = if (w == MATCH) 8.u else 0))
         panel.translationY = 600f.u
         scrim.animate().alpha(1f).setDuration(Motion.ms(200)).start()
         SpringAnimation(panel, DynamicAnimation.TRANSLATION_Y, 0f).apply {

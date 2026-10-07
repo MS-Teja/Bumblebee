@@ -27,7 +27,6 @@ import com.teja.bumblebee.ui.browse.HeroPane
 import com.teja.bumblebee.ui.browse.TrackAdapter
 import com.teja.bumblebee.ui.browse.TrackItem
 import com.teja.bumblebee.ui.browse.emptyState
-import com.teja.bumblebee.ui.browse.staggerIn
 import com.teja.bumblebee.ui.design.C
 import com.teja.bumblebee.ui.design.D
 import android.widget.HorizontalScrollView
@@ -49,6 +48,8 @@ import com.teja.bumblebee.ui.shell.enter
 import com.teja.bumblebee.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import com.teja.bumblebee.ui.design.Motion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -65,97 +66,163 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
     private var rail: AlphabetRail? = null
     private val pillX by lazy { SpringAnimation(pill, DynamicAnimation.TRANSLATION_X).apply { spring = SpringForce().setStiffness(560f).setDampingRatio(0.8f) } }
 
+    /** Library version the current page was loaded at; refreshes are silent and keep the scroll spot. */
+    private var loadedVersion = -1L
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private val tabW get() = if (D.narrow) 150 else 190
+
     override fun build(): View {
-        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(40.u, 28.u, 0, 0) }
+        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding((if (D.narrow) 24 else 40).u, 28.u, 0, 0) }
         root.addView(ctx.text("Library", 32f, Fonts.extraBold).apply { letterSpacing = -0.02f }, linear(MATCH, WRAP))
 
         val seg = FrameLayout(ctx).apply { background = rounded(0x0FFFFFFF, 30) }
         pill = View(ctx).apply { background = rounded(C.alpha(C.BEE, 0.18f), 26) }
-        seg.addView(pill, frame(190.u, 52.u, Gravity.CENTER_VERTICAL, l = 4.u))
+        seg.addView(pill, frame(tabW.u, 52.u, Gravity.CENTER_VERTICAL, l = 4.u))
         val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         Page.entries.forEach { p ->
-            val tv = ctx.text(p.title, 18f, Fonts.extraBold, C.TEXT2).apply {
+            val tv = ctx.text(p.title, if (D.narrow) 16f else 18f, Fonts.extraBold, C.TEXT2).apply {
                 gravity = Gravity.CENTER
-                pressable(0.95f) { select(p, true) }
+                pressable(0.95f) { select(p) }
             }
             tabs += tv
-            row.addView(tv, linear(190.u, 52.u))
+            row.addView(tv, linear(tabW.u, 52.u))
         }
         seg.addView(row, frame(WRAP, MATCH, l = 4.u))
-        root.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(seg, android.widget.FrameLayout.LayoutParams(4 * 190.u + 8.u, 60.u)) }, linear(MATCH, 60.u, t = 18.u))
+        root.addView(HorizontalScrollView(ctx).apply {
+            isHorizontalScrollBarEnabled = false
+            clipToPadding = false
+            setPadding(0, 0, 24.u, 0)
+            addView(seg, android.widget.FrameLayout.LayoutParams(4 * tabW.u + 8.u, 60.u))
+        }, linear(MATCH, 60.u, t = 18.u))
 
         listHost = FrameLayout(ctx)
         list = RecyclerView(ctx).apply {
             clipToPadding = false
-            setPadding(0, 18.u, 36.u, 130.u)
+            setPadding(0, 18.u, (if (D.narrow) 24 else 36).u, D.bottomChrome(mini = true) + 26.u)
             itemAnimator = null
         }
         listHost.addView(list, frame(MATCH, MATCH))
         root.addView(listHost, linear(MATCH, 0, 1f))
+        paintTabs(host.accent.accent)
+        pill.translationX = (Page.entries.indexOf(page) * tabW).u.toFloat()
         return root
     }
 
+    override suspend fun prepare() {
+        if (loadedVersion < 0) data = fetch(page)
+    }
+
     override fun onShow() {
-        select(page, false)
-        launchVisible { Library.version.debounce(800).collect { if (list.adapter != null) load() } }
+        // First visit: fill straight away (the tab transition is the only motion). Later visits keep
+        // what's there and only refresh, silently, if the library changed meanwhile.
+        val ready = data
+        when {
+            list.adapter == null && ready != null -> show(ready, Mode.FIRST)
+            list.adapter == null -> load(Mode.FIRST)
+            Library.version.value != loadedVersion -> load(Mode.SILENT)
+        }
+        launchVisible { Library.version.drop(1).debounce(800).collect { load(Mode.SILENT) } }
         launchVisible { PlayerHub.state.collect { s -> (list.adapter as? TrackAdapter)?.setPlaying(s.current?.path, s.playing) } }
         launchVisible {
             host.accentFlow.collect { a ->
                 (list.adapter as? TrackAdapter)?.accent = a.accent
-                (pill.background as android.graphics.drawable.GradientDrawable).setColor(C.alpha(a.accent, 0.18f))
-                tabs.forEachIndexed { i, tv -> tv.setTextColor(if (i == Page.entries.indexOf(page)) a.accent else C.TEXT2) }
+                paintTabs(a.accent)
             }
         }
     }
 
-    private fun select(p: Page, animate: Boolean) {
-        page = p
-        val x = (Page.entries.indexOf(p) * 190).u.toFloat()
-        if (animate) pillX.animateToFinalPosition(x) else pill.translationX = x
-        val accent = host.accent.accent
+    private fun paintTabs(accent: Int) {
         (pill.background as android.graphics.drawable.GradientDrawable).setColor(C.alpha(accent, 0.18f))
-        tabs.forEachIndexed { i, tv -> tv.setTextColor(if (i == Page.entries.indexOf(p)) accent else C.TEXT2) }
-        load(animate)
+        tabs.forEachIndexed { i, tv -> tv.setTextColor(if (i == Page.entries.indexOf(page)) accent else C.TEXT2) }
     }
 
-    private fun load(animate: Boolean = false) {
-        scope.launch {
-            rail?.let { listHost.removeView(it) }
-            rail = null
-            emptyView?.let { listHost.removeView(it) }
-            emptyView = null
-            when (page) {
-                Page.ALBUMS -> {
-                    val albums = withContext(Dispatchers.IO) { Library.albums() }
-                    list.layoutManager = GridLayoutManager(ctx, ((D.contentW - 76) / 220).coerceIn(2, 8))
-                    list.adapter = AlbumAdapter(albums) { a, art -> host.openDetail(DetailScreen.album(host, a.name, a.sample.albumArtist, art.drawable), art) }
-                    if (albums.isEmpty()) showEmpty()
-                }
-                Page.ARTISTS -> {
-                    val artists = withContext(Dispatchers.IO) { Library.artists() }
-                    list.layoutManager = LinearLayoutManager(ctx)
-                    list.adapter = ArtistAdapter(artists) { a, art -> host.openDetail(DetailScreen.artist(host, a.name, art.drawable), art) }
-                    if (artists.size > 40) addRail { i -> artists.getOrNull(i)?.name }
-                    if (artists.isEmpty()) showEmpty()
-                }
-                Page.SONGS, Page.RECENT -> {
-                    val songs = withContext(Dispatchers.IO) { if (page == Page.SONGS) Library.allTracks() else Library.recentlyAdded(200) }
-                    val ctxLabel = if (page == Page.SONGS) "All songs" else "Recently added"
-                    val ad = TrackAdapter(
-                        onPlay = { i -> PlayerHub.play(songs, i, PlayContext(ctxLabel, null)) },
-                        onLong = { t -> host.showTrackActions(t, t.parent) },
-                        onPlayNext = { t -> PlayerHub.playNext(t); host.toast("Plays next: ${t.title}") },
-                    )
-                    ad.accent = host.accent.accent
-                    ad.submit(songs.mapIndexed { i, t -> TrackItem(t, i + 1, showArt = true) })
-                    list.layoutManager = LinearLayoutManager(ctx)
-                    list.adapter = ad
-                    PlayerHub.state.value.let { ad.setPlaying(it.current?.path, it.playing) }
-                    if (page == Page.SONGS && songs.size > 40) addRail { i -> songs.getOrNull(i)?.title }
-                    if (songs.isEmpty()) showEmpty()
-                }
+    private fun select(p: Page) {
+        if (p == page && list.adapter != null) { list.smoothScrollToPosition(0); return }
+        page = p
+        pillX.animateToFinalPosition((Page.entries.indexOf(p) * tabW).u.toFloat())
+        paintTabs(host.accent.accent)
+        load(Mode.SWITCH)
+    }
+
+    private enum class Mode { FIRST, SWITCH, SILENT }
+
+    /** Data for one page, read off the main thread. */
+    private class PageData(val page: Page, val version: Long, val albums: List<Album> = emptyList(), val artists: List<Artist> = emptyList(), val songs: List<Track> = emptyList())
+
+    private var data: PageData? = null
+
+    private suspend fun fetch(p: Page): PageData = withContext(Dispatchers.IO) {
+        val v = Library.version.value
+        when (p) {
+            Page.ALBUMS -> PageData(p, v, albums = Library.albums())
+            Page.ARTISTS -> PageData(p, v, artists = Library.artists())
+            Page.SONGS -> PageData(p, v, songs = Library.allTracks())
+            Page.RECENT -> PageData(p, v, songs = Library.recentlyAdded(200))
+        }
+    }
+
+    private fun load(mode: Mode) {
+        loadJob?.cancel()
+        val p = page
+        loadJob = scope.launch {
+            if (mode == Mode.SWITCH && !Motion.reduced) {
+                // Segment change: the old page dips out while the new one loads, then fades up.
+                list.animate().alpha(0f).translationY(0f).setDuration(90).setStartDelay(0).start()
             }
-            list.staggerIn()
+            val d = fetch(p)
+            if (p != page) return@launch
+            show(d, mode)
+        }
+    }
+
+    private fun show(d: PageData, mode: Mode) {
+        data = d
+        loadedVersion = d.version
+        // A silent refresh keeps the reader exactly where they were.
+        val keep = if (mode == Mode.SILENT) list.layoutManager?.onSaveInstanceState() else null
+        rail?.let { listHost.removeView(it); (it.bubble)?.let { b -> listHost.removeView(b) } }
+        rail = null
+        emptyView?.let { listHost.removeView(it) }
+        emptyView = null
+        when (d.page) {
+            Page.ALBUMS -> {
+                list.layoutManager = GridLayoutManager(ctx, ((D.contentW - 76) / 220).coerceIn(2, 8))
+                list.adapter = AlbumAdapter(d.albums) { a, art -> host.openDetail(DetailScreen.album(host, a.name, a.sample.albumArtist, art.drawable), art) }
+                if (d.albums.isEmpty()) showEmpty()
+            }
+            Page.ARTISTS -> {
+                list.layoutManager = LinearLayoutManager(ctx)
+                list.adapter = ArtistAdapter(d.artists) { a, art -> host.openDetail(DetailScreen.artist(host, a.name, art.drawable), art) }
+                if (d.artists.size > 40) addRail { i -> d.artists.getOrNull(i)?.name }
+                if (d.artists.isEmpty()) showEmpty()
+            }
+            Page.SONGS, Page.RECENT -> {
+                val songs = d.songs
+                val ctxLabel = if (d.page == Page.SONGS) "All songs" else "Recently added"
+                val ad = TrackAdapter(
+                    onPlay = { i -> PlayerHub.play(songs, i, PlayContext(ctxLabel, null)) },
+                    onLong = { t -> host.showTrackActions(t, t.parent) },
+                    onPlayNext = { t -> PlayerHub.playNext(t); host.toast("Plays next: ${t.title}") },
+                )
+                ad.accent = host.accent.accent
+                ad.submit(songs.mapIndexed { i, t -> TrackItem(t, i + 1, showArt = true) })
+                list.layoutManager = LinearLayoutManager(ctx)
+                list.adapter = ad
+                PlayerHub.state.value.let { ad.setPlaying(it.current?.path, it.playing) }
+                if (d.page == Page.SONGS && songs.size > 40) addRail { i -> songs.getOrNull(i)?.title }
+                if (songs.isEmpty()) showEmpty()
+            }
+        }
+        if (keep != null) list.layoutManager?.onRestoreInstanceState(keep)
+        when (mode) {
+            Mode.SWITCH -> {
+                list.scrollToPosition(0)
+                list.alpha = 0f
+                list.translationY = 14f.u
+                list.animate().alpha(1f).translationY(0f).setDuration(Motion.ms(220)).setStartDelay(0).setInterpolator(Motion.emphasized).start()
+            }
+            Mode.FIRST -> reveal(list)
+            Mode.SILENT -> Unit
         }
     }
 
@@ -254,6 +321,7 @@ class DetailScreen private constructor(
     override val heroArt: ImageView? get() = if (::hero.isInitialized) hero.art else null
 
     private lateinit var hero: HeroPane
+    private lateinit var list: RecyclerView
     private lateinit var tracksAdapter: TrackAdapter
     private var tracks: List<Track> = emptyList()
 
@@ -267,10 +335,10 @@ class DetailScreen private constructor(
             setPadding(10.u, 16.u, 10.u, 16.u)
             pressable(0.95f) { host.pop() }
         }
-        val list = RecyclerView(ctx).apply {
+        list = RecyclerView(ctx).apply {
             layoutManager = LinearLayoutManager(ctx)
             clipToPadding = false
-            setPadding(0, 6.u, 30.u, 124.u)
+            setPadding(0, 6.u, (if (D.narrow) 16 else 30).u, D.bottomChrome(mini = true) + 20.u)
             itemAnimator = null
         }
         tracksAdapter = TrackAdapter(
@@ -286,19 +354,31 @@ class DetailScreen private constructor(
             addView(list, linear(MATCH, 0, 1f))
         }
         val root = com.teja.bumblebee.ui.browse.heroLayout(ctx, hero, col)
-        scope.launch {
+        if (loaded) fill() else scope.launch {
             tracks = withContext(Dispatchers.IO) { loader() }
-            tracksAdapter.submit(tracks.mapIndexed { i, t -> TrackItem(t, if (showArtInRows) i + 1 else t.trackNo.takeIf { it > 0 } ?: (i + 1), showArt = showArtInRows) })
-            val dur = tracks.sumOf { it.durationMs }
-            hero.subtitle.text = listOfNotNull(
-                if (!round) tracks.firstOrNull()?.let { it.albumArtist ?: it.artist } else null,
-                Fmt.count(tracks.size, "song"),
-                if (dur > 0) Fmt.duration(dur) else null,
-            ).joinToString(" · ")
-            tracks.firstOrNull()?.let { ArtLoader.bind(hero.art, it, ArtLoader.Size.LARGE, fade = initialArt == null) }
-            list.staggerIn()
+            loaded = true
+            fill()
+            reveal(list)
         }
         return root
+    }
+
+    private var loaded = false
+
+    override suspend fun prepare() {
+        tracks = withContext(Dispatchers.IO) { loader() }
+        loaded = true
+    }
+
+    private fun fill() {
+        tracksAdapter.submit(tracks.mapIndexed { i, t -> TrackItem(t, if (showArtInRows) i + 1 else t.trackNo.takeIf { it > 0 } ?: (i + 1), showArt = showArtInRows) })
+        val dur = tracks.sumOf { it.durationMs }
+        hero.subtitle.text = listOfNotNull(
+            if (!round) tracks.firstOrNull()?.let { it.albumArtist ?: it.artist } else null,
+            Fmt.count(tracks.size, "song"),
+            if (dur > 0) Fmt.duration(dur) else null,
+        ).joinToString(" · ")
+        tracks.firstOrNull()?.let { ArtLoader.bind(hero.art, it, ArtLoader.Size.LARGE, fade = initialArt == null) }
     }
 
     override fun onShow() {

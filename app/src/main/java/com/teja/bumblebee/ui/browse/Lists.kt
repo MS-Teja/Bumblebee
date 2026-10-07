@@ -317,9 +317,10 @@ class FolderCardAdapter(
  */
 class HeroPane(ctx: Context, round: Boolean = false, val compact: Boolean = com.teja.bumblebee.ui.design.D.portrait) : LinearLayout(ctx) {
     val art = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; if (round) ovalClip() else roundCorners(if (compact) 24 else 30) }
-    val title: TextView = ctx.text("", if (compact) 32f else 36f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }
+    private val narrow = com.teja.bumblebee.ui.design.D.narrow
+    val title: TextView = ctx.text("", if (narrow) 28f else if (compact) 32f else 36f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }
     val subtitle: TextView = ctx.text("", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f), lines = 2)
-    val play = PillButton(ctx, "Play", R.drawable.ic_play, if (compact) 64 else 72, true, C.BEE)
+    val play = PillButton(ctx, "Play", R.drawable.ic_play, if (com.teja.bumblebee.ui.design.D.narrow) 60 else if (compact) 64 else 72, true, C.BEE)
     val shuffle = FrameLayout(ctx).apply {
         background = outlineCircle(0x47FFFFFF, 2)
         addView(ctx.icon(R.drawable.ic_shuffle, 28, C.TEXT), frame(28.u, 28.u, Gravity.CENTER))
@@ -327,7 +328,7 @@ class HeroPane(ctx: Context, round: Boolean = false, val compact: Boolean = com.
     }
 
     init {
-        val btn = if (compact) 64 else 72
+        val btn = if (narrow) 60 else if (compact) 64 else 72
         val buttons = LinearLayout(ctx).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -337,8 +338,9 @@ class HeroPane(ctx: Context, round: Boolean = false, val compact: Boolean = com.
         if (compact) {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(32.u, 28.u, 32.u, 8.u)
-            addView(art, linear(220.u, 220.u, r = 28.u))
+            setPadding((if (narrow) 20 else 32).u, (if (narrow) 20 else 28).u, (if (narrow) 20 else 32).u, 8.u)
+            val side = if (narrow) 176 else 220
+            addView(art, linear(side.u, side.u, r = (if (narrow) 20 else 28).u))
             addView(LinearLayout(ctx).apply {
                 orientation = VERTICAL
                 addView(title, linear(MATCH, WRAP))
@@ -473,19 +475,6 @@ class HeaderAdapter(private var title: String, private var action: String? = nul
             act.visibility = if (action == null) View.GONE else View.VISIBLE
         }
     }
-}
-
-/** Rows fade and rise in, staggered, the first time a list fills (cheap view animations). */
-fun RecyclerView.staggerIn() {
-    if (Motion.reduced) return
-    val set = android.view.animation.AnimationSet(true).apply {
-        addAnimation(android.view.animation.AlphaAnimation(0f, 1f))
-        addAnimation(android.view.animation.TranslateAnimation(0f, 0f, 22f.u, 0f))
-        duration = 300
-        interpolator = android.view.animation.DecelerateInterpolator(2f)
-    }
-    layoutAnimation = android.view.animation.LayoutAnimationController(set, 0.07f)
-    scheduleLayoutAnimation()
 }
 
 /** Shared empty state ("Nothing here." / "Bee is speechless."). */

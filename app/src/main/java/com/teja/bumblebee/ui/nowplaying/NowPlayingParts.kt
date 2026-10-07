@@ -232,13 +232,16 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
     var onDrag: ((Float) -> Unit)? = null
     var onDragEnd: ((Float) -> Unit)? = null
     var onSwipeUp: (() -> Unit)? = null
+    /** Downward drag in progress (total dy) and its release (dy, velocity). */
+    var onPullDown: ((Float) -> Unit)? = null
+    var onPullEnd: ((Float, Float) -> Unit)? = null
     var onEmptyTap: (() -> Unit)? = null
     var onAnyTouch: (() -> Unit)? = null
 
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
     private var downX = 0f
     private var downY = 0f
-    private var mode = 0 // 0 undecided, 1 horizontal, 2 vertical
+    private var mode = 0 // 0 undecided, 1 horizontal, 2 up, 3 down
     private var velocity: VelocityTracker? = null
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -263,6 +266,11 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
                     mode = 2
                     return true
                 }
+                if (onPullDown != null && dy > slop * 2f && abs(dy) > abs(dx) * 1.6f) {
+                    mode = 3
+                    downY = e.y
+                    return true
+                }
             }
         }
         return false
@@ -279,8 +287,11 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
                 if (mode == 0) {
                     if (abs(dx) > slop * 1.5f && abs(dx) > abs(dy) * 1.4f) { mode = 1; onDragStart?.invoke(); downX = e.x }
                     else if (dy < -slop * 2.5f && abs(dy) > abs(dx) * 1.6f) mode = 2
+                    else if (onPullDown != null && dy > slop * 2f && abs(dy) > abs(dx) * 1.6f) { mode = 3; downY = e.y }
                 }
                 if (mode == 1) onDrag?.invoke(e.x - downX)
+                // The surface itself moves while pulled, so measure in screen space.
+                if (mode == 3) onPullDown?.invoke(e.rawY - pullStartRaw)
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val vt = velocity
@@ -288,6 +299,7 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
                 when (mode) {
                     1 -> onDragEnd?.invoke(if (e.actionMasked == MotionEvent.ACTION_UP) vt?.xVelocity ?: 0f else 0f)
                     2 -> if (e.actionMasked == MotionEvent.ACTION_UP && (downY - e.y > 80f.u || (vt?.yVelocity ?: 0f) < -900f.u)) onSwipeUp?.invoke()
+                    3 -> onPullEnd?.invoke(if (e.actionMasked == MotionEvent.ACTION_UP) e.rawY - pullStartRaw else 0f, if (e.actionMasked == MotionEvent.ACTION_UP) vt?.yVelocity ?: 0f else 0f)
                     0 -> if (e.actionMasked == MotionEvent.ACTION_UP && abs(e.x - downX) < slop && abs(e.y - downY) < slop) onEmptyTap?.invoke()
                 }
                 mode = 0
@@ -298,9 +310,14 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
         return true
     }
 
+    private var pullStartRaw = 0f
+
     private fun track(e: MotionEvent) {
-        if (e.actionMasked == MotionEvent.ACTION_DOWN) { velocity?.recycle(); velocity = VelocityTracker.obtain() }
-        velocity?.addMovement(e)
+        if (e.actionMasked == MotionEvent.ACTION_DOWN) { velocity?.recycle(); velocity = VelocityTracker.obtain(); pullStartRaw = e.rawY }
+        // Track in screen space: the surface moves under the finger while it's being pulled.
+        val ev = MotionEvent.obtain(e).apply { setLocation(e.rawX, e.rawY) }
+        velocity?.addMovement(ev)
+        ev.recycle()
     }
 }
 

@@ -11,9 +11,14 @@ object Prefs {
     private val _changes = MutableStateFlow(0)
     val changes: StateFlow<Int> = _changes
 
+    /** Phones get phone-friendly defaults (system bars visible, no autoplay, no glance mode). */
+    var handheld = false
+        private set
+
     fun init(context: Context) {
         if (::sp.isInitialized) return
         sp = context.getSharedPreferences("bee", Context.MODE_PRIVATE)
+        handheld = com.teja.bumblebee.util.Device.isHandheld(context)
     }
 
     private fun bump() { _changes.value++ }
@@ -23,11 +28,11 @@ object Prefs {
         get() = sp.getBoolean("driver_right", true)
         set(v) { sp.edit().putBoolean("driver_right", v).apply(); bump() }
     var immersive: Boolean
-        get() = sp.getBoolean("immersive", true)
+        get() = sp.getBoolean("immersive", !handheld)
         set(v) { sp.edit().putBoolean("immersive", v).apply(); bump() }
     /** 0 = off. */
     var glanceDelaySec: Int
-        get() = sp.getInt("glance_delay", 20)
+        get() = sp.getInt("glance_delay", if (handheld) 0 else 20)
         set(v) { sp.edit().putInt("glance_delay", v).apply(); bump() }
     var reduceMotion: Boolean
         get() = sp.getBoolean("reduce_motion", false)
@@ -36,7 +41,7 @@ object Prefs {
     // --- Playback ---
     /** "play", "paused" or "off". */
     var onStartup: String
-        get() = sp.getString("on_startup", "play")!!
+        get() = sp.getString("on_startup", if (handheld) "paused" else "play")!!
         set(v) { sp.edit().putString("on_startup", v).apply(); bump() }
     /** "ask", "play" or "none". */
     var onUsb: String

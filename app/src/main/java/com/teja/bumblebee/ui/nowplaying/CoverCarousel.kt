@@ -161,6 +161,21 @@ class CoverCarousel(ctx: Context, sizeDp: Int, leftDp: Int, topDp: Int) : FrameL
         layoutStrip()
     }
 
+    /** Shows these three songs at once, cancelling any deck motion (used when the page reappears). */
+    fun snap(prev: Track?, cur: Track?, next: Track?) {
+        if (dragging) return
+        spring.cancel()
+        committing = 0
+        pendingBind = null
+        offset = 0f
+        slots.forEach { it.animate().cancel() }
+        val wanted = arrayOf(prev, cur, next)
+        for (pos in 0..2) setSlot(order[pos], wanted[pos])
+        layers(false)
+        applyDesaturation()
+        layoutStrip()
+    }
+
     private fun setSlot(slot: Int, t: Track?) {
         if (tracks[slot]?.path == t?.path && t != null) { tracks[slot] = t; return }
         tracks[slot] = t

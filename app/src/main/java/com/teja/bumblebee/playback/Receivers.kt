@@ -27,7 +27,8 @@ internal fun withController(context: Context, done: () -> Unit, block: (MediaCon
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Prefs.init(context)
-        if (Prefs.onStartup == "off") return
+        // Only "Resume playing" has anything to do at boot; restoring a paused queue can wait for the app.
+        if (Prefs.onStartup != "play") return
         val pending = goAsync()
         // Creating the service restores the queue and, for "play", starts playback itself.
         withController(context, { pending.finish() }) { }

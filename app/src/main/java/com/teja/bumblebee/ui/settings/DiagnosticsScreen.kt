@@ -44,16 +44,22 @@ class DiagnosticsScreen(host: MainActivity) : Screen(host) {
     private val logListener = { renderLog() }
 
     override fun build(): View {
-        val root = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; setPadding(40.u, 26.u, 30.u, 20.u) }
+        val dd = com.teja.bumblebee.ui.design.D
+        // Phones: the report and the tools stack instead of sitting side by side.
+        val stacked = dd.narrow
+        val root = LinearLayout(ctx).apply {
+            orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            setPadding((if (stacked) 20 else 40).u, 26.u, (if (stacked) 20 else 30).u, dd.bottomChrome(mini = true) + 20.u)
+        }
         val left = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         left.addView(ctx.text("‹  Settings", 18f, Fonts.bold, C.alpha(C.TEXT, 0.6f)).apply { setPadding(0, 8.u, 0, 8.u); pressable(0.95f) { host.pop() } })
         left.addView(ctx.text("Under the hood", 34f, Fonts.extraBold), linear(MATCH, WRAP, t = 4.u))
         left.addView(ctx.text("What this head unit really is, beyond its Settings screen.", 17f, Fonts.medium, C.TEXT2), linear(MATCH, WRAP, t = 4.u, b = 8.u))
         sectionsHost = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         left.addView(ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; addView(sectionsHost) }, linear(MATCH, 0, 1f))
-        root.addView(left, linear(0, MATCH, 1.6f))
+        root.addView(left, if (stacked) linear(MATCH, 0, 1.4f) else linear(0, MATCH, 1.6f))
 
-        val right = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(24.u, 0, 0, 0) }
+        val right = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(if (stacked) 0 else 24.u, if (stacked) 16.u else 0, 0, 0) }
         right.addView(PillButton(ctx, "Allow storage access", null, 64, false, C.BEE).apply { pressable { host.requestStorage() } }, linear(MATCH, 64.u, b = 10.u))
         keyButton = PillButton(ctx, "Start key test", null, 64, true, C.BEE).apply { pressable { toggleProbe() } }
         right.addView(keyButton, linear(MATCH, 64.u, b = 10.u))
@@ -65,7 +71,7 @@ class DiagnosticsScreen(host: MainActivity) : Screen(host) {
             setLineSpacing(0f, 1.15f)
         }
         right.addView(ScrollView(ctx).apply { addView(logView) }, linear(MATCH, 0, 1f))
-        root.addView(right, linear(0, MATCH, 1f))
+        root.addView(right, if (stacked) linear(MATCH, 0, 1f) else linear(0, MATCH, 1f))
         return root
     }
 

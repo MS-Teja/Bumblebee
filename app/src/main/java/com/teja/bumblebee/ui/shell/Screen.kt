@@ -27,6 +27,18 @@ abstract class Screen(val host: MainActivity) {
     open val tab: Tab = Tab.HOME
     /** The big artwork a shared-element flight lands on when this screen is opened from a card. */
     open val heroArt: android.widget.ImageView? get() = null
+    /** Where the playing song's cover sits on this screen (Home's card); null means the mini-player. */
+    open val playerArt: android.widget.ImageView? get() = null
+
+    /** When the screen last became visible (uptime ms). */
+    private var shownAt = 0L
+
+    /**
+     * Loads what the first frame needs. The shell waits for it briefly before navigating, so the page
+     * arrives already filled and the transition is the only motion (no "loads twice" effect).
+     */
+    open suspend fun prepare() {}
+    internal var prepared = false
 
     abstract fun build(): View
     open fun onShow() {}
@@ -36,7 +48,18 @@ abstract class Screen(val host: MainActivity) {
 
     internal fun dispatchShow() {
         visibleScope = MainScope()
+        shownAt = android.os.SystemClock.uptimeMillis()
         onShow()
+    }
+
+    /**
+     * Content that arrives after the page is already on screen fades in once; content that is ready
+     * while the page is still transitioning in just appears (the transition already animates it).
+     */
+    protected fun reveal(v: View) {
+        if (com.teja.bumblebee.ui.design.Motion.reduced || android.os.SystemClock.uptimeMillis() - shownAt < 160) return
+        v.alpha = 0f
+        v.animate().alpha(1f).setDuration(180).setStartDelay(0).start()
     }
 
     internal fun dispatchHide() {

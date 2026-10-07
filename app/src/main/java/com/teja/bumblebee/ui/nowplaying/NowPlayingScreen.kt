@@ -79,6 +79,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     private lateinit var empty: LinearLayout
     private lateinit var geo: Geo
     private var nextPanel: NextPanel? = null
+    private var topBar: View? = null
     private lateinit var glanceNext: TextView
 
     private val handler = Handler(Looper.getMainLooper())
@@ -113,8 +114,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         surface.addView(info, frame(g.colW.u, g.colH.u))
 
         labelTop = ctx.label("Playing from", C.TEXT3, 15f)
-        info.addView(labelTop, frame(MATCH, WRAP, t = 2.u))
-        chipText = ctx.text("", 22f, Fonts.bold, C.alpha(C.TEXT, 0.82f))
+        chipText = ctx.text("", if (g.topBar) 19f else 22f, Fonts.bold, C.alpha(C.TEXT, 0.82f))
         chip = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -122,9 +122,37 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             addView(ctx.icon(R.drawable.ic_chevron_right, 22, C.alpha(C.TEXT, 0.82f)), linear(22.u, 22.u, l = 6.u))
             pressable(0.96f) { state.context.path?.let { host.openFolder(it, state.current?.path) } }
         }
-        info.addView(chip, frame(WRAP, 48.u, t = 20.u))
+        if (g.topBar) {
+            // Full-screen player: collapse on the left, where the music comes from in the middle,
+            // the queue on the right.
+            labelTop.gravity = Gravity.CENTER
+            chipText.maxWidth = (D.contentW - 260).u
+            val collapse = CircleButton(ctx, R.drawable.ic_chevron_down, 64, 30, 0x14FFFFFF, C.TEXT).apply {
+                contentDescription = "Close player"
+                pressable(0.9f) { host.collapsePlayer() }
+            }
+            val queue = CircleButton(ctx, R.drawable.ic_queue, 64, 28, 0x14FFFFFF, C.TEXT).apply {
+                contentDescription = "Queue"
+                pressable(0.9f) { host.showQueue() }
+            }
+            val middle = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                addView(labelTop, linear(MATCH, WRAP))
+                addView(chip, linear(WRAP, 40.u, t = 2.u))
+            }
+            topBar = FrameLayout(ctx).apply {
+                addView(collapse, frame(64.u, 64.u, Gravity.CENTER_VERTICAL or Gravity.START, l = 20.u))
+                addView(middle, frame(MATCH, WRAP, Gravity.CENTER_VERTICAL, l = 96.u, r = 96.u))
+                addView(queue, frame(64.u, 64.u, Gravity.CENTER_VERTICAL or Gravity.END, r = 20.u))
+            }
+            surface.addView(topBar, frame(MATCH, Geo.TOP_BAR.u, t = 4.u))
+        } else {
+            info.addView(labelTop, frame(MATCH, WRAP, t = 2.u))
+            info.addView(chip, frame(WRAP, 48.u, t = 20.u))
+        }
 
-        trackText = TrackText(ctx, g.titleSize, 28f, showAlbum = true, fitWidth = g.colW, minTitle = 32f)
+        trackText = TrackText(ctx, g.titleSize, g.artistSize, showAlbum = g.showAlbum, fitWidth = g.colW, minTitle = minOf(32f, g.titleSize - 6f))
         info.addView(trackText, frame(MATCH, g.textH.u, t = g.textT.u))
         glanceText = TrackText(ctx, g.glanceTitle, 36f, showAlbum = false, fitWidth = g.glanceW, minTitle = 50f).apply { alpha = 0f }
         info.addView(glanceText, frame(g.glanceW.u, (g.textH + 90).u, t = (g.textT - 14).u))
@@ -149,17 +177,18 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         info.addView(bubble, frame(WRAP, WRAP, t = (g.seekT - 44).u))
 
         // Transport spans the full column; centres stay fixed so glance mode only scales them in place.
-        prev = CircleButton(ctx, R.drawable.ic_prev, 104, 44, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Previous" }
-        next = CircleButton(ctx, R.drawable.ic_next, 104, 44, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Next" }
-        play = PlayPauseView(ctx, 58).apply { contentDescription = "Play or pause" }
+        prev = CircleButton(ctx, R.drawable.ic_prev, g.btn, g.btn * 44 / 104, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Previous" }
+        next = CircleButton(ctx, R.drawable.ic_next, g.btn, g.btn * 44 / 104, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Next" }
+        play = PlayPauseView(ctx, g.play * 58 / 144).apply { contentDescription = "Play or pause" }
         prev.pressable(0.9f, onLongClick = { PlayerHub.seekBy(-10_000) }) { onUserActivity(); PlayerHub.prev() }
         next.pressable(0.9f, onLongClick = { PlayerHub.seekBy(10_000) }) { onUserActivity(); PlayerHub.next() }
         play.pressable(0.92f) { onUserActivity(); PlayerHub.toggle() }
         val mid = g.colW / 2
-        val spread = ((g.colW - 104) / 2).coerceAtMost(176)
-        info.addView(prev, frame(104.u, 104.u, l = (mid - spread - 52).u, t = (g.playT + 20).u))
-        info.addView(play, frame(144.u, 144.u, l = (mid - 72).u, t = g.playT.u))
-        info.addView(next, frame(104.u, 104.u, l = (mid + spread - 52).u, t = (g.playT + 20).u))
+        val spread = ((g.colW - g.btn) / 2).coerceAtMost(176)
+        val dy = (g.play - g.btn) / 2
+        info.addView(prev, frame(g.btn.u, g.btn.u, l = (mid - spread - g.btn / 2).u, t = (g.playT + dy).u))
+        info.addView(play, frame(g.play.u, g.play.u, l = (mid - g.play / 2).u, t = g.playT.u))
+        info.addView(next, frame(g.btn.u, g.btn.u, l = (mid + spread - g.btn / 2).u, t = (g.playT + dy).u))
 
         // Bottom row: shuffle, repeat and "up next" share one band.
         shuffle = ToggleIcon(ctx, R.drawable.ic_shuffle, 56, 26).apply { pressable { PlayerHub.toggleShuffle() }; contentDescription = "Shuffle" }
@@ -247,37 +276,35 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     }
 
     /**
-     * Now Playing geometry in design px, computed from the content area so any screen works:
-     * 16:9 gets the reference layout; taller/narrower screens centre it; ultrawide centres the group
-     * with a wider column; portrait stacks the cover above the controls.
+     * Now Playing geometry in design px, computed from the window so any screen works: 16:9 gets the
+     * reference layout; taller/narrower screens centre it; ultrawide adds an "up next" panel; short
+     * landscape phones tighten the column; portrait is a full-screen player (cover on top, controls
+     * below, a bar with collapse / source / queue above).
      */
-    private class Geo(
+    private data class Geo(
         val cover: Int, val coverInsetX: Int, val coverInsetY: Int,
         val carouselX: Int, val carouselY: Int, val carouselW: Int, val carouselH: Int,
         val colX: Int, val colY: Int, val colW: Int, val colH: Int,
         val textT: Int, val textH: Int, val seekT: Int, val playT: Int, val bottomT: Int,
-        val titleSize: Float, val glanceW: Int, val glanceTitle: Float, val glanceGrowsLeft: Boolean,
-        val glanceScale: Float, val panelX: Int = 0, val panelW: Int = 0,
+        val titleSize: Float, val artistSize: Float, val showAlbum: Boolean,
+        val play: Int, val btn: Int,
+        val glanceW: Int, val glanceTitle: Float, val glanceGrowsLeft: Boolean,
+        val glanceScale: Float, val topBar: Boolean, val panelX: Int = 0, val panelW: Int = 0,
     ) {
         companion object {
+            /** Below this the column switches to smaller transport and type. */
             private const val MIN_COL_H = 560
-
-            fun Geo.withPanel(x: Int, w: Int) = Geo(
-                cover, coverInsetX, coverInsetY, carouselX, carouselY, carouselW, carouselH,
-                colX, colY, colW, colH, textT, textH, seekT, playT, bottomT,
-                titleSize, glanceW, glanceTitle, glanceGrowsLeft, glanceScale, x, w,
-            )
+            const val TOP_BAR = 96
 
             fun compute(): Geo {
-                val cw = D.contentW
-                val ch = D.contentH
-                return if (D.portrait) portrait(cw, ch) else landscape(cw, ch)
+                // Portrait: the player covers the bottom bar, so it gets the whole height.
+                return if (D.portrait) portrait(D.contentW, D.designH) else landscape(D.contentW, D.contentH)
             }
 
             private fun landscape(cw: Int, ch: Int): Geo {
                 val gap = 64
                 var s = minOf(ch - 120, cw - 404 - 40 - gap - 32)
-                s = s.coerceIn(320, 760)
+                s = s.coerceIn(minOf(320, ch - 40), 760)
                 val colW = (cw - 40 - s - gap - 32).coerceIn(360, 560)
                 var group = 40 + s + gap + colW + 32
                 // Ultrawide: spend spare width on an "up next" panel instead of empty margins.
@@ -286,33 +313,46 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
                 if (panelW > 0) group += 56 + panelW
                 val ox = maxOf(0, (cw - group) / 2)
                 val marginY = (ch - s) / 2
-                val colTop = marginY
-                val colBottom = minOf(ch - 20, marginY + s + 40)
+                var colTop = marginY
+                var colBottom = minOf(ch - 20, marginY + s + 40)
+                if (colBottom - colTop < MIN_COL_H) {
+                    // Short screens (phones on their side): the column takes the full height.
+                    colTop = minOf(colTop, 20)
+                    colBottom = ch - 16
+                }
                 val right = Prefs.driverRight
                 val pw = if (panelW > 0) 56 + panelW else 0
                 val carouselX = if (right) ox else ox + 32 + colW + pw + gap - 40
                 val colX = if (right) ox + 40 + s + gap else ox + 32
                 val panelX = if (panelW > 0) colX + colW + 56 else 0
                 val glanceExtra = if (ox >= D.RAIL / 2 || panelW > 0) 0 else D.RAIL - 8
-                return column(
+                val g = column(
                     cover = s, insetX = 40, insetY = marginY,
                     carouselX = carouselX, carouselY = 0, carouselW = s + 80, carouselH = ch,
                     colX = colX, colY = colTop, colW = colW, colH = colBottom - colTop,
                     glanceW = colW + glanceExtra, growsLeft = !right && glanceExtra > 0,
-                    glanceScale = ((ch - 60f) / s).coerceIn(1f, 1.12f),
-                ).let { if (panelW > 0) it.withPanel(panelX, panelW) else it }
+                    glanceScale = ((ch - 60f) / s).coerceIn(1f, 1.12f), labelH = 90, topBar = false,
+                )
+                return if (panelW > 0) g.copy(panelX = panelX, panelW = panelW) else g
             }
 
             private fun portrait(cw: Int, ch: Int): Geo {
-                val s = minOf(cw - 96, ch - 48 - 40 - MIN_COL_H - 24).coerceIn(280, 760)
+                val margin = if (cw < 600) 32 else 48
+                val colW = minOf(cw - 2 * margin, 640)
+                val maxS = minOf(cw - 2 * margin, 760)
+                val coverY = TOP_BAR + 8
+                // The cover takes what the controls leave; tight phones get the compact controls.
+                fun coverFor(need: Int) = ch - coverY - 36 - need - 24
+                var s = minOf(maxS, coverFor(480))
+                if (s < 320) s = minOf(maxS, coverFor(400))
+                s = s.coerceAtLeast(180)
+                val colY = coverY + s + 36
                 val carouselW = s + 80
-                val colY = 48 + s + 40
-                val colW = minOf(cw - 96, 640)
                 return column(
-                    cover = s, insetX = 40, insetY = 48,
-                    carouselX = (cw - carouselW) / 2, carouselY = 0, carouselW = carouselW, carouselH = s + 96,
+                    cover = s, insetX = 40, insetY = coverY,
+                    carouselX = (cw - carouselW) / 2, carouselY = 0, carouselW = carouselW, carouselH = coverY + s + 48,
                     colX = (cw - colW) / 2, colY = colY, colW = colW, colH = ch - colY - 24,
-                    glanceW = colW, growsLeft = false, glanceScale = 1.06f,
+                    glanceW = colW, growsLeft = false, glanceScale = 1.06f, labelH = 0, topBar = true,
                 )
             }
 
@@ -320,20 +360,29 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
                 cover: Int, insetX: Int, insetY: Int,
                 carouselX: Int, carouselY: Int, carouselW: Int, carouselH: Int,
                 colX: Int, colY: Int, colW: Int, colH: Int,
-                glanceW: Int, growsLeft: Boolean, glanceScale: Float,
+                glanceW: Int, growsLeft: Boolean, glanceScale: Float, labelH: Int, topBar: Boolean,
             ): Geo {
                 // Bottom-up: shared row, transport, seek; the title block takes what's left at the top.
-                val h = maxOf(colH, MIN_COL_H)
-                val bottomT = h - 56
-                val playT = bottomT - 20 - 144
-                val seekT = playT - 90
-                val textT = 90
-                val textH = (seekT - 10 - textT).coerceAtLeast(150)
-                val title = if (textH >= 220) 56f else 48f
+                val compact = colH < MIN_COL_H - (if (topBar) 80 else 0)
+                // In the hand, controls are a thumb away: smaller buttons, more room for the title.
+                val smallControls = compact || (topBar && D.handheld)
+                val play = if (smallControls) 120 else 144
+                val btn = if (smallControls) 88 else 104
+                val bottomT = colH - 56
+                val playT = bottomT - (if (compact) 14 else 20) - play
+                val seekT = playT - (if (compact) 80 else 90)
+                val textT = if (compact && labelH > 0) 72 else labelH
+                val textH = (seekT - 10 - textT).coerceAtLeast(96)
+                val title = when {
+                    textH >= 220 -> 56f
+                    textH >= 160 -> 48f
+                    else -> 38f
+                }
                 return Geo(
                     cover, insetX, insetY, carouselX, carouselY, carouselW, carouselH,
-                    colX, colY, colW, h, textT, textH, seekT, playT, bottomT,
-                    title, glanceW, if (glanceW >= 500) 88f else 72f, growsLeft, glanceScale,
+                    colX, colY, colW, colH, textT, textH, seekT, playT, bottomT,
+                    title, if (textH >= 160) 28f else 23f, textH >= 170, play, btn,
+                    glanceW, if (glanceW >= 500) 88f else 72f, growsLeft, glanceScale, topBar,
                 )
             }
         }
@@ -387,6 +436,16 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         surface.onDrag = { dx -> carousel.dragTo(dx) }
         surface.onDragEnd = { v -> carousel.release(v) }
         surface.onSwipeUp = { host.showQueue() }
+        // Portrait (phones): the player is a sheet; pull it down to put it away.
+        surface.onPullDown = { dy -> if (D.portrait && !glance) pull(dy) }
+        surface.onPullEnd = { dy, vy ->
+            when {
+                glance -> exitGlance()
+                !D.portrait -> Unit
+                dy > 160f.u || vy > 1100f.u -> host.collapsePlayer()
+                else -> surface.animate().translationY(0f).alpha(1f).setDuration(Motion.ms(240)).setInterpolator(Motion.emphasized).start()
+            }
+        }
         surface.onEmptyTap = { if (glance) exitGlance() }
         surface.onAnyTouch = { onUserActivity() }
 
@@ -401,17 +460,47 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         seek.onSeek = { f -> PlayerHub.seekTo((f * state.durationMs).toLong()); onUserActivity() }
     }
 
+    /** Follows a downward drag with resistance, dimming as it goes. */
+    private fun pull(dy: Float) {
+        val y = if (dy <= 0f) 0f else dy * 0.62f
+        surface.translationY = y
+        surface.alpha = 1f - (y / (surface.height * 0.9f)).coerceIn(0f, 0.5f)
+    }
+
     // ------------------------------------------------------------------ lifecycle
 
+    /**
+     * Shows the current song immediately, with no deck animation: the song may have changed while
+     * this page was hidden, and the page's own entrance is the only motion it should make.
+     */
+    private fun syncNow() {
+        val s = PlayerHub.state.value
+        lockedDir = 0
+        lockedAccent = null
+        host.backdrop.preview(null, 0f)
+        if (s.current != null) {
+            carousel.snap(s.prev, s.current, s.next)
+            trackText.settle(0)
+            glanceText.settle(0)
+            trackText.show(s.current)
+            glanceText.show(s.current)
+        }
+        render(s)
+    }
+
     override fun onShow() {
+        surface.alpha = 1f
+        syncNow()
         launchVisible { PlayerHub.state.collect { render(it) } }
         launchVisible { BeeEvents.waiting.collect { waitingLabel = it; applyOverrides() } }
         launchVisible { Prefs.changes.collect { relayout() } }
         handler.post(progressTick)
         onUserActivity()
-        if (autoGlanceArmed && state.playing) {
+        // Starting the car lands in the driving view: only on the player's very first appearance
+        // (the player may still be connecting, so check for playback when the timer fires).
+        if (autoGlanceArmed) {
             autoGlanceArmed = false
-            handler.postDelayed({ if (state.playing) enterGlance() }, 3_500)
+            if (Prefs.glanceDelaySec > 0) handler.postDelayed({ if (state.playing) enterGlance() }, 3_500)
         }
         if (!Prefs.swipeHintShown) {
             handler.postDelayed({
@@ -453,7 +542,8 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         upNextText.text = s.next?.let { "${it.title}  ·  ${it.artistLabel}" } ?: "End of queue"
         glanceNext.text = s.next?.let { "Next · ${it.title}" } ?: ""
         nextPanel?.bind(PlayerHub.upcoming(8), ((geo.colH - 60) / 84).coerceIn(3, 8))
-        chipText.text = s.context.label.ifBlank { s.current?.parent?.substringAfterLast('/') ?: "" }
+        // During a cameo the chip carries Bee's line; don't let state updates overwrite it.
+        if (System.currentTimeMillis() > cameoUntil) chipText.text = s.context.label.ifBlank { s.current?.parent?.substringAfterLast('/') ?: "" }
         if (s.current?.path != lastPath) {
             lastPath = s.current?.path
             s.current?.let { onNewTrack(it) }
@@ -573,7 +663,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         if (glance || !state.playing || host.sheetOpen || waitingLabel != null) { scheduleGlance(); return }
         glance = true
         val d = Motion.ms(400)
-        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, badge, nextPanel).forEach {
+        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, badge, nextPanel, topBar).forEach {
             it.animate().alpha(0f).setDuration(d).start()
             it.isEnabled = false
         }
@@ -591,7 +681,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         if (!glance) return
         glance = false
         val d = Motion.ms(250)
-        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, nextPanel).forEach {
+        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, nextPanel, topBar).forEach {
             it.animate().alpha(1f).setDuration(d).start()
             it.isEnabled = true
         }

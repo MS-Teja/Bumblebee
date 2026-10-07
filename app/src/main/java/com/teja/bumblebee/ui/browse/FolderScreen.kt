@@ -72,7 +72,25 @@ class FolderScreen(
     private var bigCards: Boolean? = null
     private var listing: FolderListing? = null
     private var rail: AlphabetRail? = null
-    private var firstFill = true
+    private var railBubble: View? = null
+    /** Listing read before the page opened (chains already followed), so it arrives complete. */
+    private var preloaded: FolderListing? = null
+
+    override suspend fun prepare() {
+        preloaded = resolve()
+    }
+
+    /** Lists [dir], following a folder holding nothing but one subfolder straight into it. */
+    private suspend fun resolve(): FolderListing {
+        var l = FolderRepo.list(dir)
+        var hops = 0
+        while (l.exists && l.tracks.isEmpty() && l.playlists.isEmpty() && l.folders.size == 1 && hops < 6) {
+            dir = l.folders.first().dir
+            l = FolderRepo.list(dir)
+            hops++
+        }
+        return l
+    }
 
     override fun build(): View {
         hero = HeroPane(ctx)
@@ -81,14 +99,14 @@ class FolderScreen(
         hero.play.pressable { host.playFolder(dir, shuffle = false) }
         hero.shuffle.pressable { host.playFolder(dir, shuffle = true) }
 
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(if (hero.compact) 24.u else 8.u, if (hero.compact) 8.u else 26.u, 0, 0) }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(if (hero.compact) 16.u else 8.u, if (hero.compact) 4.u else 26.u, 0, 0) }
         crumbs = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val crumbScroll = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(crumbs) }
-        col.addView(crumbScroll, linear(MATCH, 56.u, r = 30.u))
+        col.addView(crumbScroll, linear(MATCH, 56.u, r = (if (D.narrow) 16 else 30).u))
         listHost = FrameLayout(ctx)
         list = RecyclerView(ctx).apply {
             clipToPadding = false
-            setPadding(0, 4.u, 30.u, 124.u)
+            setPadding(0, 4.u, (if (D.narrow) 16 else 30).u, D.bottomChrome(mini = true) + 20.u)
             itemAnimator = null
         }
         listHost.addView(list, frame(MATCH, MATCH))
@@ -105,7 +123,8 @@ class FolderScreen(
         folderHeader = HeaderAdapter("Folders").apply { visible = false }
         songHeader = HeaderAdapter("Songs", null) { playHere() }.apply { visible = false }
         buildCrumbs()
-        load()
+        val ready = preloaded
+        if (ready != null) { preloaded = null; listing = ready; render(ready) } else load(first = true)
         return root
     }
 
@@ -164,23 +183,18 @@ class FolderScreen(
         if (!host.pop()) host.onBackPressedDispatcher.onBackPressed()
     }
 
-    private fun load() {
+    private fun load(first: Boolean = false) {
         scope.launch {
-            var l = FolderRepo.list(dir)
-            // A folder holding nothing but one subfolder: open straight into it.
-            var hops = 0
-            while (l.exists && l.tracks.isEmpty() && l.playlists.isEmpty() && l.folders.size == 1 && hops < 6) {
-                dir = l.folders.first().dir
-                l = FolderRepo.list(dir)
-                hops++
-            }
-            if (hops > 0) {
+            val before = dir.path
+            val l = resolve()
+            if (dir.path != before) {
                 hero.title.text = displayName()
                 ArtLoader.bindFolder(hero.art, dir.path, dir.name, ArtLoader.Size.LARGE, hero.art.drawable)
                 buildCrumbs()
             }
             listing = l
             render(l)
+            if (first) reveal(listHost)
         }
     }
 
@@ -230,8 +244,9 @@ class FolderScreen(
                 listOf(folderHeader, folders!!, songHeader, tracks),
             )
             // Folder cards per row from the list's width (≈250px each), so any screen fills evenly.
-            val listW = D.contentW - (if (hero.compact) 24 else 380 + 8) - 30
-            val span = (listW / (if (big) 230 else 250)).coerceIn(2, 6)
+            val listW = D.contentW - (if (hero.compact) 16 else 380 + 8) - (if (D.narrow) 16 else 30)
+            // Narrow phones: folder chips go one per row so names stay readable.
+            val span = if (!big && D.narrow) 1 else (listW / (if (big) 230 else 250)).coerceIn(2, 6)
             val glm = GridLayoutManager(ctx, span)
             glm.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                 override fun getSpanSize(position: Int): Int {
@@ -251,14 +266,15 @@ class FolderScreen(
         songHeader.set("${Fmt.count(here, "song")} in this folder", "Play these $here")
         tracks.submit(l.tracks.mapIndexed { i, t -> TrackItem(t, i + 1) })
         highlight?.let { tracks.highlight(it) }
-        if (firstFill) { firstFill = false; list.staggerIn() }
 
         if (l.tracks.isEmpty() && cards.isEmpty()) {
             emptyHost.addView(emptyState(ctx, "Nothing here.", EasterEggs.emptyFolderLine(), "Go up") { goUp() }, frame(MATCH, MATCH))
         }
 
         rail?.let { listHost.removeView(it) }
+        railBubble?.let { listHost.removeView(it) }
         rail = null
+        railBubble = null
         if (l.tracks.size > 40) {
             val offset = folderHeader.itemCount + (folders?.itemCount ?: 0) + songHeader.itemCount
             val r = AlphabetRail(ctx, list) { i -> if (i >= offset) tracks.items.getOrNull(i - offset)?.track?.title else null }
@@ -269,8 +285,9 @@ class FolderScreen(
                 alpha = 0f
             }
             r.bubble = bubble
+            railBubble = bubble
             listHost.addView(bubble, frame(84.u, 84.u, Gravity.END, r = 70.u))
-            listHost.addView(r, frame(40.u, MATCH, Gravity.END, b = 120.u, t = 10.u))
+            listHost.addView(r, frame(40.u, MATCH, Gravity.END, b = D.bottomChrome(mini = true) + 16.u, t = 10.u))
             rail = r
         }
 

@@ -50,7 +50,6 @@ import com.teja.bumblebee.ui.design.roundCorners
 import com.teja.bumblebee.ui.design.text
 import com.teja.bumblebee.ui.design.u
 import com.teja.bumblebee.ui.settings.BeeLogo
-import com.teja.bumblebee.ui.browse.staggerIn
 import com.teja.bumblebee.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
@@ -104,11 +103,41 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
         // Left pane: the song that's playing, big, plus queue-wide actions.
         currentArtist.setTextColor(accent)
         currentEq.color = accent
-        val portrait = com.teja.bumblebee.ui.design.D.portrait
-        val artSide = if (portrait) 150 else minOf(312, com.teja.bumblebee.ui.design.D.contentH - 400).coerceAtLeast(160)
+        val dd = com.teja.bumblebee.ui.design.D
+        val portrait = dd.portrait
+        val artSide = if (portrait) (if (dd.narrow) 112 else 150) else minOf(312, dd.contentH - 400).coerceAtLeast(160)
         val left = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(36.u, 4.u, 28.u, if (portrait) 12.u else 28.u)
+            setPadding((if (dd.narrow) 22 else 36).u, 4.u, (if (dd.narrow) 22 else 28).u, if (portrait) 12.u else 28.u)
+            if (portrait) {
+                // Portrait: art beside the title, like the rest of the app's compact headers.
+                addView(LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(currentArt, linear(artSide.u, artSide.u, r = 20.u))
+                    addView(LinearLayout(ctx).apply {
+                        orientation = LinearLayout.VERTICAL
+                        addView(LinearLayout(ctx).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            gravity = Gravity.CENTER_VERTICAL
+                            addView(ctx.text("NOW PLAYING", 14f, Fonts.extraBold, accent).apply { letterSpacing = 0.14f }, linear(0, WRAP, 1f))
+                            addView(currentEq, linear(20.u, 20.u))
+                        }, linear(MATCH, WRAP))
+                        addView(currentTitle, linear(MATCH, WRAP, t = 6.u))
+                        addView(currentArtist, linear(MATCH, WRAP, t = 4.u))
+                    }, linear(0, WRAP, 1f))
+                }, linear(MATCH, WRAP))
+                addView(currentFrom, linear(MATCH, WRAP, t = 10.u))
+                addView(View(ctx), linear(MATCH, 14.u))
+                addView(LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    addView(shuffleChip.apply { pressable(0.95f) { PlayerHub.toggleShuffle() } }, linear(0, 56.u, 1f, r = 10.u))
+                    addView(PillButton(ctx, "Clear", R.drawable.ic_trash, 56, false, accent).apply {
+                        pressable { PlayerHub.clearUpcoming(); host.toast("Upcoming songs cleared") }
+                    }, linear(WRAP, 56.u))
+                }, linear(MATCH, WRAP))
+                return@apply
+            }
             addView(currentArt, linear(artSide.u, artSide.u))
             addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -132,7 +161,7 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
         // Right pane: everything that's coming, as tall as the screen allows.
         val right = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(8.u, 0, 30.u, 0)
+            setPadding(8.u, 0, (if (dd.narrow) 16 else 30).u, 0)
             addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.BOTTOM
@@ -142,7 +171,7 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             list.layoutManager = LinearLayoutManager(ctx)
             list.adapter = adapter
             list.clipToPadding = false
-            list.setPadding(0, 10.u, 0, 30.u)
+            list.setPadding(0, 10.u, 0, 30.u + dd.insetBottom)
             list.itemAnimator?.changeDuration = 0
             addView(list, linear(MATCH, 0, 1f))
         }
@@ -151,7 +180,7 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
                 // Portrait: the playing song sits above the list.
                 orientation = LinearLayout.VERTICAL
                 addView(left, linear(MATCH, WRAP))
-                addView(right, linear(MATCH, 0, 1f, l = 18.u))
+                addView(right, linear(MATCH, 0, 1f, l = (if (dd.narrow) 6 else 18).u))
             } else {
                 orientation = LinearLayout.HORIZONTAL
                 addView(left, linear(390.u, MATCH))
@@ -163,16 +192,17 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
 
         scrim.setOnClickListener { dismiss() }
         layer.addView(scrim, frame(MATCH, MATCH))
-        // Covers the whole content area (the rail stays visible), leaving only a sliver of the player above.
-        val dd = com.teja.bumblebee.ui.design.D
+        // Covers the content area (the rail stays visible), leaving a sliver of the player above;
+        // in portrait it runs to the bottom edge, under the gesture bar.
         if (portrait) {
-            layer.addView(panel, frame(MATCH, (dd.contentH - 24).u, Gravity.TOP, l = 12.u, r = 12.u, t = 24.u))
+            layer.addView(panel, frame(MATCH, MATCH, l = 8.u + dd.insetLeft, r = 8.u + dd.insetRight, t = dd.insetTop + 24.u))
         } else {
             val side = if (Prefs.driverRight) Gravity.START else Gravity.END
             val railGap = dd.RAIL + 12
-            layer.addView(panel, frame((dd.contentW - 24).u, (dd.contentH - 24).u, Gravity.BOTTOM or side, l = if (Prefs.driverRight) 12.u else railGap.u, r = if (Prefs.driverRight) railGap.u else 12.u))
+            layer.addView(panel, frame((dd.contentW - 24).u, (dd.contentH - 24).u, Gravity.BOTTOM or side,
+                l = (if (Prefs.driverRight) 12.u else railGap.u) + dd.insetLeft, r = (if (Prefs.driverRight) railGap.u else 12.u) + dd.insetRight, b = dd.insetBottom))
         }
-        panel.translationY = dd.designH.toFloat().u
+        panel.translationY = (dd.designH.u + dd.insetTop + dd.insetBottom).toFloat()
         scrim.animate().alpha(1f).setDuration(Motion.ms(220)).start()
         SpringAnimation(panel, DynamicAnimation.TRANSLATION_Y, 0f).apply {
             spring = SpringForce(0f).setStiffness(360f).setDampingRatio(0.86f)
@@ -189,7 +219,6 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             true
         }
         refresh()
-        list.post { list.staggerIn() }
     }
 
     private fun refresh() {
@@ -300,7 +329,7 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             }, linear(WRAP, 52.u))
         }
         undo = bar
-        layer.addView(bar, frame(WRAP, 68.u, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, b = 30.u))
+        layer.addView(bar, frame(WRAP, 68.u, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, b = 30.u + com.teja.bumblebee.ui.design.D.insetBottom))
         bar.alpha = 0f
         bar.translationY = 20f.u
         bar.animate().alpha(1f).translationY(0f).setDuration(220).start()
@@ -401,7 +430,11 @@ class UsbCard(
         card.roundCorners(30)
 
         val right = Prefs.driverRight
-        layer.addView(card, frame(470.u, WRAP, Gravity.TOP or (if (right) Gravity.END else Gravity.START), t = 26.u, r = if (right) 156.u else 0, l = if (right) 0 else 156.u))
+        val dd = com.teja.bumblebee.ui.design.D
+        val w = if (dd.narrow) MATCH else 470.u
+        val edge = if (dd.portrait) 16.u else 156.u
+        layer.addView(card, frame(w, WRAP, Gravity.TOP or (if (right) Gravity.END else Gravity.START), t = 26.u + dd.insetTop,
+            r = (if (right || dd.narrow) edge else 0) + dd.insetRight, l = (if (!right || dd.narrow) edge else 0) + dd.insetLeft))
         card.translationX = (if (right) 1 else -1) * 620f.u
         SpringAnimation(card, DynamicAnimation.TRANSLATION_X, 0f).apply {
             spring = SpringForce(0f).setStiffness(300f).setDampingRatio(0.78f)
@@ -488,15 +521,19 @@ class Onboarding(private val host: MainActivity, private val layer: FrameLayout,
             intArrayOf(0xFF1A1405.toInt(), 0xFF07090C.toInt(), 0xFF0B1418.toInt()),
         )
         root.isClickable = true
+        val dd = com.teja.bumblebee.ui.design.D
+        val phone = dd.handheld
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        col.addView(BeeLogo(ctx), linear(120.u, 120.u))
-        col.addView(ctx.text("Your music,\non the big screen", 52f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f; setLineSpacing(0f, 1.05f) }, linear(MATCH, WRAP, t = 34.u))
-        col.addView(ctx.text("Bumblebee plays the songs on this unit and on any pendrive you plug in. It needs permission to read your files. Nothing ever leaves the car.", 20f, Fonts.semiBold, C.TEXT2, lines = 4).apply { setLineSpacing(0f, 1.25f) }, linear(MATCH, WRAP, t = 18.u))
+        col.addView(BeeLogo(ctx), linear((if (dd.narrow) 88 else 120).u, (if (dd.narrow) 88 else 120).u))
+        val headline = if (phone) "Your folders,\nbeautifully played" else "Your music,\non the big screen"
+        col.addView(ctx.text(headline, if (dd.narrow) 40f else 52f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f; setLineSpacing(0f, 1.05f) }, linear(MATCH, WRAP, t = (if (dd.narrow) 24 else 34).u))
+        val body = if (phone) "Bumblebee plays the music on this phone and on any USB drive you plug in. It needs permission to read your audio files. Nothing ever leaves the device."
+        else "Bumblebee plays the songs on this unit and on any pendrive you plug in. It needs permission to read your files. Nothing ever leaves the car."
+        col.addView(ctx.text(body, if (dd.narrow) 18f else 20f, Fonts.semiBold, C.TEXT2, lines = 5).apply { setLineSpacing(0f, 1.25f) }, linear(MATCH, WRAP, t = 18.u))
         col.addView(PillButton(ctx, "Allow access", R.drawable.ic_check, 80, true, C.BEE).apply { pressable { host.requestStorage() } }, linear(WRAP, 80.u, t = 36.u))
         col.addView(ctx.label("Rewinding the tapes happens next", C.TEXT3, 14f), linear(WRAP, WRAP, t = 18.u))
-        val dd = com.teja.bumblebee.ui.design.D
-        if (dd.portrait) root.addView(col, frame(MATCH, WRAP, Gravity.BOTTOM, l = 60.u, r = 60.u, b = 120.u))
-        else root.addView(col, frame(640.u, MATCH, Gravity.START, l = 110.u))
+        if (dd.portrait) root.addView(col, frame(MATCH, WRAP, Gravity.BOTTOM, l = (if (dd.narrow) 32 else 60).u, r = (if (dd.narrow) 32 else 60).u, b = (if (dd.narrow) 56 else 120).u + dd.insetBottom))
+        else root.addView(col, frame(640.u, MATCH, Gravity.START, l = 110.u + dd.insetLeft))
 
         // A small deck of mixtapes dealt onto the right side, echoing the Now Playing card deck.
         val deck = FrameLayout(ctx)
@@ -507,13 +544,14 @@ class Onboarding(private val host: MainActivity, private val layer: FrameLayout,
         )
         cards.forEachIndexed { i, (d, rot) ->
             val iv = ImageView(ctx).apply { setImageDrawable(d); roundCorners(28) }
-            deck.addView(iv, frame(320.u, 320.u, Gravity.CENTER, l = (i - 1) * 70.u))
+            val card = if (dd.narrow) 240 else 320
+            deck.addView(iv, frame(card.u, card.u, Gravity.CENTER, l = (i - 1) * (if (dd.narrow) 56 else 70).u))
             iv.rotation = rot
             iv.alpha = 0f
             iv.translationY = 60f.u
             iv.animate().alpha(1f).translationY(0f).rotation(rot).setStartDelay(150L + i * 120L).setDuration(Motion.ms(520)).setInterpolator(Motion.emphasized).start()
         }
-        if (dd.portrait) root.addView(deck, frame(MATCH, 520.u, Gravity.TOP, t = 80.u))
+        if (dd.portrait) root.addView(deck, frame(MATCH, (if (dd.narrow) 400 else 520).u, Gravity.TOP, t = (if (dd.narrow) 40 else 80).u + dd.insetTop))
         else root.addView(deck, frame(560.u, MATCH, Gravity.END, r = 40.u))
         layer.addView(root, frame(MATCH, MATCH))
         poll()

@@ -24,6 +24,7 @@ import com.teja.bumblebee.data.Track
 import com.teja.bumblebee.playback.PlayerHub
 import com.teja.bumblebee.ui.MainActivity
 import com.teja.bumblebee.ui.design.C
+import com.teja.bumblebee.ui.design.D
 import com.teja.bumblebee.ui.design.Fonts
 import com.teja.bumblebee.ui.design.MATCH
 import com.teja.bumblebee.ui.design.PillButton
@@ -51,12 +52,13 @@ import kotlinx.coroutines.withContext
 class SearchScreen(host: MainActivity) : Screen(host) {
     override val tab = Tab.SEARCH
 
+    private val narrow = D.narrow
     private lateinit var field: EditText
     private lateinit var results: LinearLayout
     private var job: Job? = null
 
     override fun build(): View {
-        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(40.u, 30.u, 36.u, 0) }
+        val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding((if (narrow) 20 else 40).u, 30.u, (if (narrow) 20 else 36).u, 0) }
         field = EditText(ctx).apply {
             hint = "Songs, artists, albums, folders"
             setHintTextColor(C.alpha(C.TEXT, 0.4f))
@@ -86,8 +88,15 @@ class SearchScreen(host: MainActivity) : Screen(host) {
             addView(clear, linear(26.u, 26.u))
         }
         root.addView(bar, linear(MATCH, 64.u))
-        results = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 10.u, 0, 140.u) }
-        root.addView(ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; addView(results) }, linear(MATCH, 0, 1f, t = 8.u))
+        results = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 10.u, 0, D.bottomChrome(mini = true) + 36.u) }
+        val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; clipToPadding = false; addView(results) }
+        root.addView(scroll, linear(MATCH, 0, 1f, t = 8.u))
+        // Phones: keep results scrollable above the on-screen keyboard.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+            val ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime()).bottom
+            v.setPadding(0, 0, 0, (ime - D.bottomChrome(mini = true) - D.insetBottom).coerceAtLeast(0))
+            insets
+        }
         showRecent()
         return root
     }
@@ -119,7 +128,8 @@ class SearchScreen(host: MainActivity) : Screen(host) {
         results.removeAllViews()
         val r = recent()
         if (r.isEmpty()) {
-            results.addView(ctx.text("Type to search everything on your drives. (Best done while parked.)", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.45f)), linear(MATCH, WRAP, t = 24.u))
+            val hint = if (D.handheld) "Type to search every song, album, artist and folder." else "Type to search everything on your drives. (Best done while parked.)"
+            results.addView(ctx.text(hint, 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.45f), lines = 3), linear(MATCH, WRAP, t = 24.u))
             return
         }
         results.addView(ctx.label("Recent searches"), linear(MATCH, WRAP, t = 18.u))
@@ -127,7 +137,7 @@ class SearchScreen(host: MainActivity) : Screen(host) {
         r.take(5).forEach { q ->
             chips.addView(PillButton(ctx, q, R.drawable.ic_search, 56, false, C.BEE).apply { pressable(0.95f) { field.setText(q); field.setSelection(q.length) } }, linear(WRAP, 56.u, r = 12.u))
         }
-        results.addView(chips, linear(MATCH, WRAP, t = 12.u))
+        results.addView(android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, linear(MATCH, WRAP, t = 12.u))
     }
 
     private fun query(q: String) {
@@ -158,17 +168,24 @@ class SearchScreen(host: MainActivity) : Screen(host) {
                 gravity = Gravity.CENTER_VERTICAL
                 background = rounded(C.alpha(accent, 0.14f), 26)
                 setPadding(16.u, 0, 18.u, 0)
-                addView(art, linear(100.u, 100.u, r = 22.u))
+                val side = if (narrow) 84 else 100
+                addView(art, linear(side.u, side.u, r = (if (narrow) 16 else 22).u))
                 addView(LinearLayout(ctx).apply {
                     orientation = LinearLayout.VERTICAL
-                    addView(ctx.text(top.title, 28f, Fonts.extraBold), linear(MATCH, WRAP))
-                    addView(ctx.text(listOfNotNull(top.artist, top.album).joinToString(" · ").ifBlank { top.parent.substringAfterLast('/') }, 18f, Fonts.semiBold, C.TEXT2), linear(MATCH, WRAP, t = 4.u))
-                }, linear(0, WRAP, 1f))
-                addView(PillButton(ctx, "Play", R.drawable.ic_play, 64, true, accent).apply {
-                    pressable { remember(q); hideKeyboard(); PlayerHub.play(tracks, 0, PlayContext("Search: $q", null)) }
-                }, linear(WRAP, 64.u))
+                    addView(ctx.text(top.title, if (narrow) 24f else 28f, Fonts.extraBold), linear(MATCH, WRAP))
+                    addView(ctx.text(listOfNotNull(top.artist, top.album).joinToString(" · ").ifBlank { top.parent.substringAfterLast('/') }, if (narrow) 16f else 18f, Fonts.semiBold, C.TEXT2), linear(MATCH, WRAP, t = 4.u))
+                }, linear(0, WRAP, 1f, r = 10.u))
+                val playTop = { remember(q); hideKeyboard(); PlayerHub.play(tracks, 0, PlayContext("Search: $q", null)) }
+                if (narrow) {
+                    addView(com.teja.bumblebee.ui.design.CircleButton(ctx, R.drawable.ic_play, 64, 28, accent, if (C.isLight(accent)) C.INK else C.TEXT).apply {
+                        contentDescription = "Play"
+                        pressable { playTop() }
+                    }, linear(64.u, 64.u))
+                } else {
+                    addView(PillButton(ctx, "Play", R.drawable.ic_play, 64, true, accent).apply { pressable { playTop() } }, linear(WRAP, 64.u))
+                }
             }
-            results.addView(card, linear(MATCH, 132.u, t = 12.u))
+            results.addView(card, linear(MATCH, (if (narrow) 116 else 132).u, t = 12.u))
         }
         if (folders.isNotEmpty()) {
             results.addView(ctx.label("Folders"), linear(MATCH, WRAP, t = 26.u))

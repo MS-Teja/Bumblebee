@@ -42,7 +42,11 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
     private var logoTaps = 0
 
     override fun build(): View {
-        body = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(40.u, 30.u, 36.u, 140.u) }
+        val dd = com.teja.bumblebee.ui.design.D
+        body = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((if (dd.narrow) 20 else 40).u, 30.u, (if (dd.narrow) 20 else 36).u, dd.bottomChrome(mini = true) + 36.u)
+        }
         render()
         return ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; addView(body) }
     }
@@ -52,16 +56,18 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
         body.addView(ctx.text("Settings", 32f, Fonts.extraBold).apply { letterSpacing = -0.02f }, linear(MATCH, WRAP))
         val accent = host.accent.accent
 
+        val phone = com.teja.bumblebee.ui.design.D.handheld
         group("Layout") {
-            choice("Driver side", "Rail and controls sit closest to you", listOf("Right" to true, "Left" to false), Prefs.driverRight) {
+            // Phones are held in a hand, not mounted on one side of a dashboard.
+            if (!phone) choice("Driver side", "Rail and controls sit closest to you", listOf("Right" to true, "Left" to false), Prefs.driverRight) {
                 Prefs.driverRight = it; host.relayoutForDriverSide()
             }
-            toggle("Full screen", "Hide the head unit's bars (swipe from the edge to show them)", Prefs.immersive) {
+            toggle("Full screen", if (phone) "Hide the status and navigation bars" else "Hide the head unit's bars (swipe from the edge to show them)", Prefs.immersive) {
                 Prefs.immersive = it; Immersive.apply(host, it)
                 // The usable area changes size, so rebuild the layout at the new scale.
                 host.window.decorView.postDelayed({ host.recreate() }, 250)
             }
-            choice("Glance mode", "Big, calm driving view after no touches", listOf("Off" to 0, "10 s" to 10, "20 s" to 20, "30 s" to 30), Prefs.glanceDelaySec) { Prefs.glanceDelaySec = it }
+            choice("Glance mode", if (phone) "Big, calm view after no touches (great in a car mount)" else "Big, calm driving view after no touches", listOf("Off" to 0, "10 s" to 10, "20 s" to 20, "30 s" to 30), Prefs.glanceDelaySec) { Prefs.glanceDelaySec = it }
             toggle("Reduce motion", "Swap animations for quick fades", Prefs.reduceMotion) { Prefs.reduceMotion = it }
         }
         group("Playback") {
@@ -79,6 +85,9 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
                 action("Hidden: ${path.substringAfterLast('/')}", path, "Unhide") {
                     Prefs.excluded = Prefs.excluded - path; Library.changed(); render()
                 }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                action("Full file access", "Also shows folder.jpg covers and .m3u playlists", "Allow") { host.requestAllFiles() }
             }
             action("Rescan library", "Re-reads every drive for new or changed songs", "Rescan") {
                 Indexer.scanAll(force = true); host.toast("Rewinding the tapes…")
@@ -103,23 +112,31 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
                 }
             }
         }
+        val narrow = com.teja.bumblebee.ui.design.D.narrow
+        val hood = PillButton(ctx, "Under the hood", R.drawable.ic_settings, 64, false, accent).apply {
+            pressable { host.push(DiagnosticsScreen(host)) }
+        }
         val about = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = rounded(0x0FFFFFFF, 24)
             setPadding(22.u, 18.u, 22.u, 18.u)
             addView(logo, linear(88.u, 88.u, r = 22.u))
             addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(ctx.text("Bumblebee", 26f, Fonts.extraBold), linear(MATCH, WRAP))
                 addView(ctx.text("Version ${BuildConfig.VERSION_NAME}" + if (Prefs.camaro) " · Camaro mode" else "", 16f, Fonts.semiBold, C.TEXT2), linear(MATCH, WRAP, t = 4.u))
-                addView(ctx.text(EasterEggs.listeningStats(), 16f, Fonts.semiBold, C.alpha(accent, 0.9f)), linear(MATCH, WRAP, t = 6.u))
+                addView(ctx.text(EasterEggs.listeningStats(), 16f, Fonts.semiBold, C.alpha(accent, 0.9f), lines = 2), linear(MATCH, WRAP, t = 6.u))
             }, linear(0, WRAP, 1f))
-            addView(PillButton(ctx, "Under the hood", R.drawable.ic_settings, 64, false, accent).apply {
-                pressable { host.push(DiagnosticsScreen(host)) }
-            }, linear(WRAP, 64.u))
+            if (!narrow) addView(hood, linear(WRAP, 64.u))
         }
-        body.addView(about, linear(MATCH, WRAP, t = 12.u))
+        val aboutCard = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(0x0FFFFFFF, 24)
+            addView(about, linear(MATCH, WRAP))
+            // Phones: the button gets its own row under the logo.
+            if (narrow) addView(hood, linear(WRAP, 64.u, l = 22.u, b = 20.u))
+        }
+        body.addView(aboutCard, linear(MATCH, WRAP, t = 12.u))
     }
 
     // ---------------------------------------------------------------- row builders

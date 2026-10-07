@@ -41,7 +41,6 @@ import com.teja.bumblebee.ui.design.text
 import com.teja.bumblebee.ui.design.u
 import com.teja.bumblebee.ui.shell.Screen
 import com.teja.bumblebee.ui.shell.Tab
-import com.teja.bumblebee.ui.shell.enter
 import com.teja.bumblebee.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
@@ -55,6 +54,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
 
     override val showsMiniPlayer = false
     override val tab = Tab.HOME
+    override val playerArt: ImageView? get() = if (::card.isInitialized && card.visibility == View.VISIBLE) cardCover else null
 
     private lateinit var greeting: TextView
     private lateinit var stats: TextView
@@ -70,25 +70,30 @@ class HomeScreen(host: MainActivity) : Screen(host) {
     private lateinit var sections: LinearLayout
     private lateinit var body: LinearLayout
     private lateinit var emptyHost: FrameLayout
-    private var built = false
+    private val narrow = com.teja.bumblebee.ui.design.D.narrow
 
     override fun build(): View {
         val scroll = ScrollView(ctx).apply { isVerticalScrollBarEnabled = false; clipToPadding = false }
-        body = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(40.u, 30.u, 36.u, 40.u) }
+        val side = if (narrow) 20 else 40
+        body = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(side.u, 30.u, (if (narrow) 20 else 36).u, com.teja.bumblebee.ui.design.D.bottomChrome(mini = false) + 40.u)
+        }
         scroll.addView(body)
 
         greeting = ctx.text("", 32f, Fonts.extraBold).apply { letterSpacing = -0.02f }
-        stats = ctx.text("", 16f, Fonts.semiBold, C.alpha(C.TEXT, 0.5f)).apply { gravity = Gravity.END }
+        stats = ctx.text("", 16f, Fonts.semiBold, C.alpha(C.TEXT, 0.5f)).apply { gravity = if (narrow) Gravity.START else Gravity.END }
         val header = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            addView(greeting, linear(0, WRAP, 1f))
-            addView(stats, linear(WRAP, WRAP))
+            // Phones: the stats line sits under the greeting instead of squeezing it.
+            orientation = if (narrow) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = if (narrow) Gravity.START else Gravity.BOTTOM
+            addView(greeting, if (narrow) linear(MATCH, WRAP) else linear(0, WRAP, 1f))
+            addView(stats, if (narrow) linear(MATCH, WRAP, t = 4.u) else linear(WRAP, WRAP))
         }
-        body.addView(header, linear(MATCH, 44.u))
+        body.addView(header, linear(MATCH, if (narrow) WRAP else 44.u))
 
         buildCard()
-        body.addView(card, linear(MATCH, 132.u, t = 18.u))
+        body.addView(card, linear(MATCH, (if (narrow) 120 else 132).u, t = 18.u))
 
         body.addView(sectionLabel(ctx, "Sources"), linear(MATCH, WRAP, t = 26.u))
         sourcesRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
@@ -105,8 +110,8 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         cardBg = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0x4DFFC72C, 0x14FFFFFF)).apply { cornerRadius = 28f.u }
         cardCover = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(18) }
         cardLabel = ctx.text("", 14f, Fonts.extraBold, C.BEE).apply { letterSpacing = 0.14f }
-        cardTitle = ctx.text("", 28f, Fonts.extraBold)
-        cardSub = ctx.text("", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.66f))
+        cardTitle = ctx.text("", if (narrow) 24f else 28f, Fonts.extraBold)
+        cardSub = ctx.text("", if (narrow) 16f else 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.66f))
         cardProgress = View(ctx).apply { background = rounded(C.BEE, 3); pivotX = 0f }
         val track = FrameLayout(ctx).apply {
             background = rounded(0x24FFFFFF, 3)
@@ -122,7 +127,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         val open = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(cardCover, linear(100.u, 100.u, r = 22.u))
+            addView(cardCover, linear((if (narrow) 88 else 100).u, (if (narrow) 88 else 100).u, r = (if (narrow) 16 else 22).u))
             addView(texts, linear(0, WRAP, 1f, r = 18.u))
             pressable(0.98f) { host.openNowPlayingFrom(cardCover) }
         }
@@ -133,11 +138,12 @@ class HomeScreen(host: MainActivity) : Screen(host) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = cardBg
-            setPadding(16.u, 0, 18.u, 0)
+            setPadding(16.u, 0, (if (narrow) 14 else 18).u, 0)
             addView(open, linear(0, MATCH, 1f))
-            addView(prev, linear(76.u, 76.u))
-            addView(cardPlay, linear(96.u, 96.u, l = 10.u, r = 10.u))
-            addView(next, linear(76.u, 76.u))
+            // Narrow: just play/pause; the card itself opens the full player.
+            if (!narrow) addView(prev, linear(76.u, 76.u))
+            addView(cardPlay, if (narrow) linear(80.u, 80.u, l = 6.u) else linear(96.u, 96.u, l = 10.u, r = 10.u))
+            if (!narrow) addView(next, linear(76.u, 76.u))
         }
     }
 
@@ -173,6 +179,10 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         }
     }
 
+    override suspend fun prepare() {
+        pending = load(Volumes.all.value)
+    }
+
     private fun tint(accent: Int) {
         cardBg.colors = intArrayOf(C.alpha(accent, 0.28f), 0x12FFFFFF)
         cardLabel.setTextColor(accent)
@@ -181,74 +191,101 @@ class HomeScreen(host: MainActivity) : Screen(host) {
         cardPlay.colorGlyph = if (C.isLight(accent)) C.INK else C.TEXT
     }
 
-    private suspend fun refresh(vols: List<Volume>, indexing: Boolean) {
-        data class Data(
-            val total: Int,
-            val sources: List<Triple<Volume, Int, Int>>,
-            val recent: List<FolderInfo>,
-            val most: List<FolderInfo>,
-            val newest: List<FolderInfo>,
+    private data class Data(
+        val total: Int,
+        val sources: List<Triple<Volume, Int, Int>>,
+        val recent: List<FolderInfo>,
+        val most: List<FolderInfo>,
+        val newest: List<FolderInfo>,
+    )
+
+    private var shown: Data? = null
+    private var pending: Data? = null
+    private var shownEmpty: Boolean? = null
+    private val sectionViews = LinkedHashMap<String, Pair<View, RecyclerView>>()
+
+    private suspend fun load(vols: List<Volume>) = withContext(Dispatchers.IO) {
+        Data(
+            Library.totalTracks(),
+            vols.map { v -> Library.volumeStats(v.id).let { Triple(v, it.first, it.second) } },
+            tidy(Library.recentFolders(12)),
+            tidy(Library.mostPlayedFolders(12)),
+            tidy(Library.newestFolders(12)),
         )
-        val d = withContext(Dispatchers.IO) {
-            Data(
-                Library.totalTracks(),
-                vols.map { v -> Library.volumeStats(v.id).let { Triple(v, it.first, it.second) } },
-                tidy(Library.recentFolders(12)),
-                tidy(Library.mostPlayedFolders(12)),
-                tidy(Library.newestFolders(12)),
-            )
-        }
+    }
+
+    /**
+     * Updates in place and only what changed: indexing reports progress constantly, and rebuilding
+     * the page each time made it flicker and re-animate.
+     */
+    private suspend fun refresh(vols: List<Volume>, indexing: Boolean) {
+        val d = pending?.takeIf { p -> p.sources.map { it.first } == vols }?.also { pending = null } ?: load(vols)
         stats.text = when {
             indexing -> "Rewinding the tapes…"
             d.total > 0 -> "${Fmt.count(d.total, "song")} on ${Fmt.count(vols.size, "source")}"
             else -> ""
         }
-        renderSources(d.sources)
-        sections.removeAllViews()
-        fun section(title: String, raw: List<FolderInfo>) {
-            val folders = raw
-            if (folders.isEmpty()) return
-            sections.addView(sectionLabel(ctx, title), linear(MATCH, WRAP, t = 28.u))
-            val rv = RecyclerView(ctx).apply {
-                layoutManager = LinearLayoutManager(ctx, LinearLayoutManager.HORIZONTAL, false)
-                clipToPadding = false
-                itemAnimator = null
-                adapter = FolderCardAdapter(
-                    big = true,
-                    onOpen = { item, art -> host.openFolder(item.path, shared = art) },
-                    onPlay = { host.playFolder(File(it.path), shuffle = false) },
-                    onLong = { host.showFolderActions(it.path, it.name) },
-                ).apply { items = folders.map { f -> FolderCardItem(f.path, FolderRepo.contextualName(f.path), Fmt.count(f.total, "song")) } }
+        val old = shown
+        shown = d
+        if (old == null || old.sources != d.sources) renderSources(d.sources)
+        if (old == null || old.recent != d.recent || old.most != d.most || old.newest != d.newest) {
+            section("Recent folders", d.recent)
+            section("Most played", d.most.filter { m -> d.recent.take(4).none { it.path == m.path } })
+            section("Recently added", d.newest)
+        }
+        val empty = d.total == 0 && !indexing
+        if (empty != shownEmpty) {
+            shownEmpty = empty
+            emptyHost.removeAllViews()
+            if (empty) {
+                val line = if (com.teja.bumblebee.ui.design.D.handheld) "Put some songs on this phone, or plug in a USB drive." else "Plug in a pendrive with songs. Bee will find them."
+                emptyHost.addView(
+                    emptyState(ctx, "No music yet", line, if (vols.isNotEmpty()) "Browse ${vols.first().label}" else null) {
+                        vols.firstOrNull()?.let { host.openFolder(it.path) }
+                    },
+                    frame(MATCH, 320.u),
+                )
             }
-            // Fixed-width cards in a horizontal row.
-            rv.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
-                override fun onChildViewAttachedToWindow(view: View) { view.layoutParams.width = 168.u }
-                override fun onChildViewDetachedFromWindow(view: View) {}
-            })
-            sections.addView(rv, linear(MATCH, 270.u, t = 12.u))
         }
-        section("Recent folders", d.recent)
-        section("Most played", d.most.filter { m -> d.recent.take(4).none { it.path == m.path } })
-        section("Recently added", d.newest)
-        sections.post { if (!sectionsShown) { sectionsShown = true; staggerSections() } }
-
-        emptyHost.removeAllViews()
-        if (d.total == 0 && !indexing) {
-            emptyHost.addView(
-                emptyState(ctx, "No music yet", "Plug in a pendrive with songs. Bee will find them.", if (vols.isNotEmpty()) "Browse ${vols.first().label}" else null) {
-                    vols.firstOrNull()?.let { host.openFolder(it.path) }
-                },
-                frame(MATCH, 320.u),
-            )
-        }
-        if (!built) { built = true; body.enter(dy = 16f.u, duration = 320) }
+        if (old == null) reveal(body)
     }
 
-    private var sectionsShown = false
-
-    /** Each section rises in a beat after the previous one, only the first time. */
-    private fun staggerSections() {
-        for (i in 0 until sections.childCount) sections.getChildAt(i).enter(dy = 18f.u, delay = 60L * i, duration = 300)
+    /** A titled row of folder cards; created once, then its cards are swapped in place. */
+    private fun section(title: String, folders: List<FolderInfo>) {
+        val items = folders.map { f -> FolderCardItem(f.path, FolderRepo.contextualName(f.path), Fmt.count(f.total, "song")) }
+        val existing = sectionViews[title]
+        if (existing != null) {
+            val (label, rv) = existing
+            val adapter = rv.adapter as FolderCardAdapter
+            if (adapter.items != items) adapter.items = items
+            val vis = if (items.isEmpty()) View.GONE else View.VISIBLE
+            label.visibility = vis
+            rv.visibility = vis
+            return
+        }
+        val label = sectionLabel(ctx, title)
+        sections.addView(label, linear(MATCH, WRAP, t = 28.u))
+        val rv = RecyclerView(ctx).apply {
+            layoutManager = LinearLayoutManager(ctx, LinearLayoutManager.HORIZONTAL, false)
+            clipToPadding = false
+            itemAnimator = null
+            adapter = FolderCardAdapter(
+                big = true,
+                onOpen = { item, art -> host.openFolder(item.path, shared = art) },
+                onPlay = { host.playFolder(File(it.path), shuffle = false) },
+                onLong = { host.showFolderActions(it.path, it.name) },
+            ).apply { this.items = items }
+        }
+        // Fixed-size cards in a horizontal row: square art plus two lines of text.
+        val cardW = if (narrow) 150 else 168
+        val cardH = cardW + 80
+        rv.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
+            override fun onChildViewAttachedToWindow(view: View) { view.layoutParams.width = cardW.u; view.layoutParams.height = cardH.u }
+            override fun onChildViewDetachedFromWindow(view: View) {}
+        })
+        sections.addView(rv, linear(MATCH, (cardH + 22).u, t = 12.u))
+        sectionViews[title] = label to rv
+        if (items.isEmpty()) { label.visibility = View.GONE; rv.visibility = View.GONE }
     }
 
     /**
@@ -292,7 +329,8 @@ class HomeScreen(host: MainActivity) : Screen(host) {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     addView(name, linear(WRAP, WRAP, r = 10.u))
-                    addView(vol, linear(WRAP, WRAP))
+                    // The cassette art already says which mixtape it is; phones skip the tag.
+                    if (!narrow) addView(vol, linear(WRAP, WRAP))
                 }, linear(MATCH, WRAP))
                 addView(sub, linear(MATCH, WRAP, t = 4.u))
                 addView(LinearLayout(ctx).apply {
@@ -306,20 +344,24 @@ class HomeScreen(host: MainActivity) : Screen(host) {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 background = rounded(0x0FFFFFFF, 24)
-                setPadding(18.u, 0, 18.u, 0)
-                addView(art, linear(80.u, 80.u, r = 18.u))
+                setPadding((if (narrow) 14 else 18).u, 0, (if (narrow) 14 else 18).u, 0)
+                addView(art, linear((if (narrow) 72 else 80).u, (if (narrow) 72 else 80).u, r = (if (narrow) 14 else 18).u))
                 addView(texts, linear(0, WRAP, 1f))
                 pressable(0.98f, onLongClick = { host.showFolderActions(v.path, v.label) }) { host.openFolder(v.path, shared = art) }
             }
             if (list.size == 1 && songs > 0) {
                 // A single source gets the full width plus direct Play / Shuffle.
-                cardView.addView(com.teja.bumblebee.ui.design.PillButton(ctx, "Play", R.drawable.ic_play, 64, true, host.accent.accent).apply {
-                    pressable { host.playFolder(v.root, shuffle = false) }
-                }, linear(WRAP, 64.u, l = 20.u))
+                val play = if (narrow) {
+                    CircleButton(ctx, R.drawable.ic_play, 64, 28, host.accent.accent, if (C.isLight(host.accent.accent)) C.INK else C.TEXT).apply { contentDescription = "Play everything" }
+                } else {
+                    com.teja.bumblebee.ui.design.PillButton(ctx, "Play", R.drawable.ic_play, 64, true, host.accent.accent)
+                }
+                play.pressable { host.playFolder(v.root, shuffle = false) }
+                cardView.addView(play, if (narrow) linear(64.u, 64.u, l = 12.u) else linear(WRAP, 64.u, l = 20.u))
                 cardView.addView(com.teja.bumblebee.ui.design.CircleButton(ctx, R.drawable.ic_shuffle, 64, 26, 0x14FFFFFF, C.TEXT).apply {
                     pressable { host.playFolder(v.root, shuffle = true) }
                     contentDescription = "Shuffle everything"
-                }, linear(64.u, 64.u, l = 12.u))
+                }, linear(64.u, 64.u, l = if (narrow) 8.u else 12.u))
             }
             sourcesRow.addView(cardView, if (stacked) linear(MATCH, 112.u, b = if (i < list.lastIndex) 12.u else 0) else linear(0, 112.u, 1f, r = if (i < list.lastIndex) 16.u else 0))
         }
