@@ -355,7 +355,7 @@ class UsbCard(
         card.roundCorners(30)
 
         val right = Prefs.driverRight
-        layer.addView(card, frame(470.u, WRAP, Gravity.TOP or (if (right) Gravity.END else Gravity.START), t = 240.u, r = if (right) 156.u else 0, l = if (right) 0 else 156.u))
+        layer.addView(card, frame(470.u, WRAP, Gravity.TOP or (if (right) Gravity.END else Gravity.START), t = 26.u, r = if (right) 156.u else 0, l = if (right) 0 else 156.u))
         card.translationX = (if (right) 1 else -1) * 620f.u
         SpringAnimation(card, DynamicAnimation.TRANSLATION_X, 0f).apply {
             spring = SpringForce(0f).setStiffness(300f).setDampingRatio(0.78f)

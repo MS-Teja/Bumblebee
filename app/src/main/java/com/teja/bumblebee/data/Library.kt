@@ -165,7 +165,8 @@ object Library {
         val paths = db.rawQuery("SELECT path FROM tracks_fts WHERE tracks_fts MATCH ? LIMIT $limit", arrayOf(terms))
             .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
         val byPath = tracksByPath(paths)
-        return paths.mapNotNull { byPath[it] }
+        val min = minMs
+        return paths.mapNotNull { byPath[it] }.filter { it.durationMs == 0L || it.durationMs >= min }
     }
 
     // ---------------------------------------------------------------- folders

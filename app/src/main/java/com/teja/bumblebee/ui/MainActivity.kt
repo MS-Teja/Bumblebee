@@ -600,6 +600,13 @@ class MainActivity : ComponentActivity() {
 
     /** "Open with" from a file manager: play that file's folder starting from it. */
     private fun handleOpenIntent(intent: Intent?) {
+        // Debug-only: preview the USB card on emulators that can't mount a virtual drive.
+        if (com.teja.bumblebee.BuildConfig.DEBUG && intent?.getBooleanExtra("demo_usb", false) == true) {
+            Volumes.all.value.firstOrNull()?.let { v ->
+                UsbCard(this, overlay, v.copy(label = "SanDisk"), PlayerHub.state.value.current, onPlay = { PlayerHub.play() }, onOpen = { openFolder(v.path) })
+            }
+            return
+        }
         val uri = intent?.data ?: return
         if (intent.action != Intent.ACTION_VIEW) return
         val path = when (uri.scheme) {

@@ -36,7 +36,8 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
         val title: TextView = ctx.text("", titleSize, Fonts.extraBold, C.TEXT, lines = 2).apply { letterSpacing = -0.02f; setLineSpacing(0f, 1.04f) }
         val artist: TextView = ctx.text("", artistSize, Fonts.bold, C.BEE)
         val album: TextView = ctx.text("", 19f, Fonts.semiBold, C.TEXT2)
-        val root = LinearLayout(ctx).apply {
+        // Texts never overlap, so fading needs no offscreen buffer.
+        val root = object : LinearLayout(ctx) { override fun hasOverlappingRendering() = false }.apply {
             orientation = LinearLayout.VERTICAL
             addView(title, linear(MATCH, WRAP))
             addView(artist, linear(MATCH, WRAP, t = 12.u))
