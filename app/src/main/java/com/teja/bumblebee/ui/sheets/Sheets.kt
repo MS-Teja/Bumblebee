@@ -50,6 +50,7 @@ import com.teja.bumblebee.ui.design.roundCorners
 import com.teja.bumblebee.ui.design.text
 import com.teja.bumblebee.ui.design.u
 import com.teja.bumblebee.ui.settings.BeeLogo
+import com.teja.bumblebee.ui.browse.staggerIn
 import com.teja.bumblebee.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
@@ -62,11 +63,14 @@ import kotlinx.coroutines.withContext
 class QueueSheet(private val host: MainActivity, private val layer: FrameLayout, private val onClosed: () -> Unit) {
     private val ctx: Context = host
     private val scrim = View(ctx).apply { setBackgroundColor(0xB8090810.toInt()); alpha = 0f }
-    private val panel = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(30.u, 0, 30.u, 0) }
+    private val panel = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val count = ctx.text("", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.55f))
-    private val currentTitle = ctx.text("", 21f, Fonts.extraBold)
-    private val currentArt = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(14) }
+    private val currentTitle = ctx.text("", 30f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.01f }
+    private val currentArtist = ctx.text("", 20f, Fonts.bold, C.BEE)
+    private val currentFrom = ctx.text("", 16f, Fonts.semiBold, C.alpha(C.TEXT, 0.55f), lines = 2)
+    private val currentArt = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(26) }
     private val currentEq = EqBars(ctx)
+    private val shuffleChip = ctx.text("", 17f, Fonts.extraBold, C.TEXT).apply { gravity = Gravity.CENTER; setPadding(22.u, 0, 22.u, 0) }
     private val list = RecyclerView(ctx)
     private val adapter = QueueAdapter()
     private val touchHelper by lazy { makeTouchHelper() }
@@ -83,7 +87,7 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             private val p = Paint(Paint.ANTI_ALIAS_FLAG)
             override fun draw(canvas: Canvas) {
                 val b = bounds
-                p.shader = LinearGradient(0f, 0f, 0f, b.height().toFloat(), intArrayOf(C.blend(0xFF161A20.toInt(), host.accent.deep, 0.7f), 0xFA0E1014.toInt()), floatArrayOf(0f, 0.45f), Shader.TileMode.CLAMP)
+                p.shader = LinearGradient(0f, 0f, b.width().toFloat(), 0f, intArrayOf(C.blend(0xFF161A20.toInt(), host.accent.deep, 0.75f), 0xFC0E1014.toInt()), floatArrayOf(0f, 0.5f), Shader.TileMode.CLAMP)
                 val r = 34f.u
                 canvas.drawRoundRect(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom + r, r, r, p)
             }
@@ -93,50 +97,70 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
         val handle = FrameLayout(ctx).apply {
-            addView(View(ctx).apply { background = rounded(0x4DFFFFFF, 3) }, frame(64.u, 6.u, Gravity.CENTER))
+            addView(View(ctx).apply { background = rounded(0x4DFFFFFF, 3) }, frame(72.u, 6.u, Gravity.CENTER))
         }
-        panel.addView(handle, linear(MATCH, 34.u))
-        val clear = PillButton(ctx, "Clear upcoming", null, 56, false, accent).apply {
-            pressable { PlayerHub.clearUpcoming(); host.toast("Queue cleared") }
-        }
-        panel.addView(LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(ctx.text("Up next", 30f, Fonts.extraBold), linear(WRAP, WRAP, r = 14.u))
-            addView(count, linear(0, WRAP, 1f))
-            addView(clear, linear(WRAP, 56.u))
-        }, linear(MATCH, 64.u))
+        panel.addView(handle, linear(MATCH, 36.u))
+
+        // Left pane: the song that's playing, big, plus queue-wide actions.
+        currentArtist.setTextColor(accent)
         currentEq.color = accent
-        currentEq.playing = PlayerHub.state.value.playing
+        val left = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(36.u, 4.u, 28.u, 28.u)
+            addView(currentArt, linear(312.u, 312.u))
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ctx.text("NOW PLAYING", 14f, Fonts.extraBold, accent).apply { letterSpacing = 0.14f }, linear(0, WRAP, 1f))
+                addView(currentEq, linear(20.u, 20.u))
+            }, linear(MATCH, WRAP, t = 22.u))
+            addView(currentTitle, linear(MATCH, WRAP, t = 8.u))
+            addView(currentArtist, linear(MATCH, WRAP, t = 6.u))
+            addView(currentFrom, linear(MATCH, WRAP, t = 6.u))
+            addView(View(ctx), linear(MATCH, 0, 1f))
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(shuffleChip.apply { pressable(0.95f) { PlayerHub.toggleShuffle() } }, linear(0, 60.u, 1f, r = 10.u))
+                addView(PillButton(ctx, "Clear", R.drawable.ic_trash, 60, false, accent).apply {
+                    pressable { PlayerHub.clearUpcoming(); host.toast("Upcoming songs cleared") }
+                }, linear(WRAP, 60.u))
+            }, linear(MATCH, WRAP))
+        }
+
+        // Right pane: everything that's coming, as tall as the screen allows.
+        val right = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(8.u, 0, 30.u, 0)
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.BOTTOM
+                addView(ctx.text("Up next", 32f, Fonts.extraBold), linear(WRAP, WRAP, r = 14.u))
+                addView(count, linear(0, WRAP, 1f, b = 4.u))
+            }, linear(MATCH, 48.u))
+            list.layoutManager = LinearLayoutManager(ctx)
+            list.adapter = adapter
+            list.clipToPadding = false
+            list.setPadding(0, 10.u, 0, 30.u)
+            list.itemAnimator?.changeDuration = 0
+            addView(list, linear(MATCH, 0, 1f))
+        }
         panel.addView(LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(16.u, 0, 22.u, 0)
-            background = rounded(C.alpha(accent, 0.14f), 22)
-            addView(currentArt, linear(60.u, 60.u, r = 16.u))
-            addView(LinearLayout(ctx).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(ctx.text("NOW PLAYING", 13f, Fonts.extraBold, accent).apply { letterSpacing = 0.14f }, linear(MATCH, WRAP))
-                addView(currentTitle, linear(MATCH, WRAP, t = 2.u))
-            }, linear(0, WRAP, 1f))
-            addView(currentEq, linear(20.u, 20.u))
-        }, linear(MATCH, 84.u, t = 6.u))
-        list.layoutManager = LinearLayoutManager(ctx)
-        list.adapter = adapter
-        list.clipToPadding = false
-        list.setPadding(0, 10.u, 0, 40.u)
-        list.itemAnimator?.changeDuration = 0
-        panel.addView(list, linear(MATCH, 0, 1f))
+            addView(left, linear(390.u, MATCH))
+            addView(View(ctx).apply { setBackgroundColor(C.HAIR) }, linear(1.u, MATCH, b = 30.u))
+            addView(right, linear(0, MATCH, 1f, l = 18.u))
+        }, linear(MATCH, 0, 1f))
         touchHelper.attachToRecyclerView(list)
 
         scrim.setOnClickListener { dismiss() }
         layer.addView(scrim, frame(MATCH, MATCH))
+        // Covers the whole content area (the rail stays visible), leaving only a sliver of the player above.
         val side = if (Prefs.driverRight) Gravity.START else Gravity.END
-        layer.addView(panel, frame(1068.u, 664.u, Gravity.BOTTOM or side, l = if (Prefs.driverRight) 40.u else 172.u, r = if (Prefs.driverRight) 172.u else 40.u))
-        panel.translationY = 700f.u
+        layer.addView(panel, frame(1148.u - 24.u, 696.u, Gravity.BOTTOM or side, l = if (Prefs.driverRight) 12.u else 144.u, r = if (Prefs.driverRight) 144.u else 12.u))
+        panel.translationY = 720f.u
         scrim.animate().alpha(1f).setDuration(Motion.ms(220)).start()
         SpringAnimation(panel, DynamicAnimation.TRANSLATION_Y, 0f).apply {
-            spring = SpringForce(0f).setStiffness(380f).setDampingRatio(0.84f)
+            spring = SpringForce(0f).setStiffness(360f).setDampingRatio(0.86f)
             if (Motion.reduced) panel.translationY = 0f else start()
         }
         var downY = 0f
@@ -150,18 +174,25 @@ class QueueSheet(private val host: MainActivity, private val layer: FrameLayout,
             true
         }
         refresh()
+        list.post { list.staggerIn() }
     }
 
     private fun refresh() {
         val s = PlayerHub.state.value
         val cur = s.current
-        currentTitle.text = cur?.let { "${it.title}  ·  ${it.artistLabel}" } ?: ""
-        ArtLoader.bind(currentArt, cur, ArtLoader.Size.SMALL)
+        currentTitle.text = cur?.title ?: ""
+        currentArtist.text = cur?.artistLabel ?: ""
+        currentFrom.text = listOfNotNull(cur?.album, s.context.label.takeIf { it.isNotBlank() }?.let { "from $it" }).joinToString(" · ")
+        ArtLoader.bind(currentArt, cur, ArtLoader.Size.LARGE)
         currentEq.playing = s.playing
+        val accent = host.accent.accent
+        shuffleChip.text = if (s.shuffle) "Shuffle on" else "Shuffle off"
+        shuffleChip.background = rounded(if (s.shuffle) C.alpha(accent, 0.22f) else 0x14FFFFFF, 30)
+        shuffleChip.setTextColor(if (s.shuffle) accent else C.TEXT)
         val up = PlayerHub.upcoming()
         adapter.items = up.toMutableList()
         adapter.notifyDataSetChanged()
-        count.text = "${Fmt.count(up.size, "song")}" + if (s.context.label.isNotBlank()) " · ${s.context.label}" else ""
+        count.text = if (up.isEmpty()) "Nothing queued" else Fmt.count(up.size, "song")
     }
 
     fun dismiss() {

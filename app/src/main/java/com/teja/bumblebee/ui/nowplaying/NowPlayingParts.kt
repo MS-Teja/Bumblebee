@@ -30,7 +30,15 @@ import kotlin.math.min
  * Title / artist / album that move with the cover: the current text slides away with the drag while
  * the incoming song's text slides in from the other side, so the whole screen feels like one object.
  */
-class TrackText(private val ctx: Context, private val titleSize: Float, private val artistSize: Float, private val showAlbum: Boolean) : FrameLayout(ctx) {
+class TrackText(
+    private val ctx: Context,
+    private val titleSize: Float,
+    private val artistSize: Float,
+    private val showAlbum: Boolean,
+    /** Column width in design px; titles shrink (down to [minTitle]) to fit two lines without breaking words. */
+    private val fitWidth: Int = 0,
+    private val minTitle: Float = titleSize,
+) : FrameLayout(ctx) {
 
     private inner class Slot {
         val title: TextView = ctx.text("", titleSize, Fonts.extraBold, C.TEXT, lines = 2).apply { letterSpacing = -0.02f; setLineSpacing(0f, 1.04f) }
@@ -46,6 +54,7 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
         var track: Track? = null
         fun bind(t: Track?) {
             track = t
+            fitTitle(title, t?.title ?: "")
             title.text = t?.title ?: ""
             artist.text = t?.artistLabel ?: ""
             album.text = t?.album ?: ""
@@ -99,6 +108,23 @@ class TrackText(private val ctx: Context, private val titleSize: Float, private 
     }
 
     private fun Slot.accentFix() = artist.setTextColor(accent)
+
+    /** Largest size (titleSize → minTitle) at which the title fits two lines with no word split. */
+    private fun fitTitle(view: TextView, text: String) {
+        if (fitWidth <= 0 || text.isEmpty()) { view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, titleSize.u); return }
+        val paint = android.text.TextPaint(view.paint)
+        val width = fitWidth.u.toFloat()
+        val words = text.split(' ')
+        var size = titleSize
+        while (size > minTitle) {
+            paint.textSize = size.u
+            val longest = words.maxOf { paint.measureText(it) }
+            val lines = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width.toInt()).build().lineCount
+            if (longest <= width && lines <= 2) break
+            size -= 2f
+        }
+        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size.u)
+    }
 
     /** After a committed skip, the incoming text becomes current. */
     fun settle(dir: Int) {

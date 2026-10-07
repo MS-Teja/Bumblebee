@@ -35,6 +35,14 @@ import kotlin.math.sign
  */
 class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
 
+    companion object {
+        /** Cover geometry inside the carousel (design px): a 600px cover with 60px top/bottom margins. */
+        const val SIZE = 600
+        const val LEFT = 40
+        const val TOP = 60
+        const val WIDTH = 680
+    }
+
     interface Listener {
         /** Signed drag progress: negative while the next song comes in, positive for the previous one. */
         fun onProgress(progress: Float)
@@ -45,11 +53,11 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
     }
 
     var listener: Listener? = null
-    val coverSize = 504.u
+    val coverSize = SIZE.u
     private val gap = 24.u
     private val step = (coverSize + gap).toFloat()
-    private val coverLeft = 48.u
-    private val coverTop = 108.u
+    private val coverLeft = LEFT.u
+    private val coverTop = TOP.u
 
     private val slots = Array(3) { ImageView(ctx) }
     private val tracks = arrayOfNulls<Track>(3)
@@ -96,7 +104,7 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
         isChildrenDrawingOrderEnabled = true
         // The outgoing card may travel past the cover area while it fades.
         clipChildren = false
-        val glowSize = 440.u
+        val glowSize = 540.u
         glowDrawable.paint.shader = RadialGradient(
             glowSize / 2f, glowSize / 2f, glowSize / 2f,
             intArrayOf(0xFFFFFFFF.toInt(), 0x55FFFFFF, 0x00FFFFFF), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP,

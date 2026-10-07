@@ -260,7 +260,7 @@ class FolderCardAdapter(
     inner class Holder(ctx: Context) : RecyclerView.ViewHolder(LinearLayout(ctx)) {
         private val root = itemView as LinearLayout
         private val art = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(if (big) 22 else 14) }
-        private val name = ctx.text("", if (big) 19f else 18f, Fonts.extraBold)
+        private val name = ctx.text("", if (big) 19f else 17f, Fonts.extraBold)
         private val sub = ctx.text("", 15f, Fonts.semiBold, C.alpha(C.TEXT, 0.55f))
         private val playBtn = FrameLayout(ctx).apply {
             background = com.teja.bumblebee.ui.design.circle(0xB807090C.toInt())
@@ -281,14 +281,14 @@ class FolderCardAdapter(
                 root.orientation = LinearLayout.HORIZONTAL
                 root.gravity = Gravity.CENTER_VERTICAL
                 root.background = rounded(0x0FFFFFFF, 22)
-                root.setPadding(12.u, 0, 10.u, 0)
-                root.addView(art, linear(60.u, 60.u, r = 12.u))
+                root.setPadding(10.u, 0, 8.u, 0)
+                root.addView(art, linear(56.u, 56.u, r = 12.u))
                 val texts = LinearLayout(ctx).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(name, linear(MATCH, WRAP)); addView(sub, linear(MATCH, WRAP, t = 2.u))
                 }
-                root.addView(texts, linear(0, WRAP, 1f))
-                root.addView(playBtn, linear(44.u, 44.u))
+                root.addView(texts, linear(0, WRAP, 1f, r = 4.u))
+                root.addView(playBtn, linear(40.u, 40.u))
                 root.layoutParams = RecyclerView.LayoutParams(MATCH, 84.u).apply { bottomMargin = 12.u; marginEnd = 12.u }
             }
             root.pressable(0.97f, onLongClick = { items.getOrNull(bindingAdapterPosition)?.let(onLong) }) {

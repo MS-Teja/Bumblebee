@@ -19,8 +19,18 @@ object D {
     var screenH = 720
         private set
 
-    fun init(context: Context) {
-        val m = context.resources.displayMetrics
+    /**
+     * [fullScreen]: the app hides the system bars, so size against the real display — the default
+     * metrics subtract the head unit's bar and would shrink the whole UI by ~10%.
+     */
+    fun init(context: Context, fullScreen: Boolean = true) {
+        val m = android.util.DisplayMetrics()
+        if (fullScreen) {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.view.WindowManager::class.java).defaultDisplay.getRealMetrics(m)
+        } else {
+            m.setTo(context.resources.displayMetrics)
+        }
         screenW = max(m.widthPixels, m.heightPixels)
         screenH = min(m.widthPixels, m.heightPixels)
         scale = min(screenW / 1280f, screenH / 720f)

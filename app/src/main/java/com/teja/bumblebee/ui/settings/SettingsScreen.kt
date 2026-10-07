@@ -58,6 +58,8 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
             }
             toggle("Full screen", "Hide the head unit's bars (swipe from the edge to show them)", Prefs.immersive) {
                 Prefs.immersive = it; Immersive.apply(host, it)
+                // The usable area changes size, so rebuild the layout at the new scale.
+                host.window.decorView.postDelayed({ host.recreate() }, 250)
             }
             choice("Glance mode", "Big, calm driving view after no touches", listOf("Off" to 0, "10 s" to 10, "20 s" to 20, "30 s" to 30), Prefs.glanceDelaySec) { Prefs.glanceDelaySec = it }
             toggle("Reduce motion", "Swap animations for quick fades", Prefs.reduceMotion) { Prefs.reduceMotion = it }

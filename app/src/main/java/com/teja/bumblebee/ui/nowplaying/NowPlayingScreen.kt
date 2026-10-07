@@ -76,6 +76,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     private lateinit var upNextText: TextView
     private lateinit var badge: TextView
     private lateinit var empty: LinearLayout
+    private lateinit var glanceNext: TextView
 
     private val handler = Handler(Looper.getMainLooper())
     private var state = PlayerHub.State()
@@ -96,14 +97,18 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
 
     override fun build(): View {
         surface = SwipeSurface(ctx).apply { clipChildren = false }
-        carousel = CoverCarousel(ctx).apply { pivotX = 300f.u; pivotY = 360f.u }
-        surface.addView(carousel, frame(600.u, 720.u))
+        carousel = CoverCarousel(ctx).apply {
+            pivotX = (CoverCarousel.LEFT + CoverCarousel.SIZE / 2f).u
+            pivotY = 360f.u
+        }
+        surface.addView(carousel, frame(CoverCarousel.WIDTH.u, 720.u))
 
+        // Driver-side column: 404px wide, laid out top to bottom so every band is used.
         info = FrameLayout(ctx).apply { clipChildren = false }
-        surface.addView(info, frame(492.u, 720.u))
+        surface.addView(info, frame(COL.u, 720.u))
 
         labelTop = ctx.label("Playing from", C.TEXT3, 15f)
-        info.addView(labelTop, frame(MATCH, WRAP, t = 72.u))
+        info.addView(labelTop, frame(MATCH, WRAP, t = 62.u))
         chipText = ctx.text("", 22f, Fonts.bold, C.alpha(C.TEXT, 0.82f))
         chip = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -112,15 +117,15 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             addView(ctx.icon(R.drawable.ic_chevron_right, 22, C.alpha(C.TEXT, 0.82f)), linear(22.u, 22.u, l = 6.u))
             pressable(0.96f) { state.context.path?.let { host.openFolder(it, state.current?.path) } }
         }
-        info.addView(chip, frame(WRAP, 48.u, t = 90.u))
+        info.addView(chip, frame(WRAP, 48.u, t = 80.u))
 
-        trackText = TrackText(ctx, 52f, 26f, showAlbum = true)
-        info.addView(trackText, frame(MATCH, 214.u, t = 160.u))
-        glanceText = TrackText(ctx, 66f, 30f, showAlbum = false).apply { alpha = 0f }
-        info.addView(glanceText, frame(624.u, 260.u, t = 168.u))
+        trackText = TrackText(ctx, 56f, 28f, showAlbum = true, fitWidth = COL, minTitle = 34f)
+        info.addView(trackText, frame(MATCH, 230.u, t = 150.u))
+        glanceText = TrackText(ctx, 88f, 36f, showAlbum = false, fitWidth = GLANCE_COL, minTitle = 50f).apply { alpha = 0f }
+        info.addView(glanceText, frame(GLANCE_COL.u, 320.u, t = 136.u))
 
         seek = DragSeekBar(ctx)
-        info.addView(seek, frame(MATCH, 56.u, t = 380.u))
+        info.addView(seek, frame(MATCH, 56.u, t = 390.u))
         elapsed = ctx.text("0:00", 17f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f)).apply { fontFeatureSettings = "tnum" }
         remaining = ctx.text("", 17f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f)).apply {
             fontFeatureSettings = "tnum"
@@ -128,51 +133,55 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             setPadding(16.u, 6.u, 0, 6.u)
             pressable(0.96f) { showRemaining = !showRemaining; tickProgress() }
         }
-        info.addView(elapsed, frame(WRAP, WRAP, l = 11.u, t = 436.u))
-        info.addView(remaining, frame(WRAP, WRAP, Gravity.END, r = 11.u, t = 430.u))
+        info.addView(elapsed, frame(WRAP, WRAP, l = 11.u, t = 444.u))
+        info.addView(remaining, frame(WRAP, WRAP, Gravity.END, r = 11.u, t = 438.u))
         bubble = ctx.text("", 20f, Fonts.extraBold, C.INK).apply {
             background = rounded(C.TEXT, 12)
             setPadding(14.u, 6.u, 14.u, 6.u)
             fontFeatureSettings = "tnum"
             alpha = 0f
         }
-        info.addView(bubble, frame(WRAP, WRAP, t = 336.u))
+        info.addView(bubble, frame(WRAP, WRAP, t = 346.u))
 
-        // Transport: fixed centres (prev/next ±128 from play) so glance mode only scales them in place.
-        val rowTop = 470.u
-        val cx = 246.u
-        shuffle = ToggleIcon(ctx, R.drawable.ic_shuffle, 56, 26).apply { pressable { PlayerHub.toggleShuffle() }; contentDescription = "Shuffle" }
-        repeat = ToggleIcon(ctx, R.drawable.ic_repeat, 56, 26).apply { pressable { PlayerHub.cycleRepeat() }; contentDescription = "Repeat" }
-        prev = CircleButton(ctx, R.drawable.ic_prev, 96, 40, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Previous" }
-        next = CircleButton(ctx, R.drawable.ic_next, 96, 40, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Next" }
-        play = PlayPauseView(ctx, 54).apply { contentDescription = "Play or pause" }
+        // Transport spans the full column; centres stay fixed so glance mode only scales them in place.
+        prev = CircleButton(ctx, R.drawable.ic_prev, 104, 44, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Previous" }
+        next = CircleButton(ctx, R.drawable.ic_next, 104, 44, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Next" }
+        play = PlayPauseView(ctx, 58).apply { contentDescription = "Play or pause" }
         prev.pressable(0.9f, onLongClick = { PlayerHub.seekBy(-10_000) }) { onUserActivity(); PlayerHub.prev() }
         next.pressable(0.9f, onLongClick = { PlayerHub.seekBy(10_000) }) { onUserActivity(); PlayerHub.next() }
         play.pressable(0.92f) { onUserActivity(); PlayerHub.toggle() }
-        info.addView(shuffle, frame(56.u, 56.u, l = 0, t = rowTop + 47.u))
-        info.addView(prev, frame(96.u, 96.u, l = cx - 128.u - 48.u, t = rowTop + 27.u))
-        info.addView(play, frame(136.u, 136.u, l = cx - 68.u, t = rowTop + 7.u))
-        info.addView(next, frame(96.u, 96.u, l = cx + 128.u - 48.u, t = rowTop + 27.u))
-        info.addView(repeat, frame(56.u, 56.u, Gravity.END, t = rowTop + 47.u))
+        val mid = COL / 2
+        info.addView(prev, frame(104.u, 104.u, l = (mid - 150 - 52).u, t = 500.u))
+        info.addView(play, frame(144.u, 144.u, l = (mid - 72).u, t = 480.u))
+        info.addView(next, frame(104.u, 104.u, l = (mid + 150 - 52).u, t = 500.u))
 
-        upNextText = ctx.text("", 18f, Fonts.bold)
+        // Bottom row: shuffle, repeat and "up next" share one band.
+        shuffle = ToggleIcon(ctx, R.drawable.ic_shuffle, 56, 26).apply { pressable { PlayerHub.toggleShuffle() }; contentDescription = "Shuffle" }
+        repeat = ToggleIcon(ctx, R.drawable.ic_repeat, 56, 26).apply { pressable { PlayerHub.cycleRepeat() }; contentDescription = "Repeat" }
+        info.addView(shuffle, frame(56.u, 56.u, t = 644.u))
+        info.addView(repeat, frame(56.u, 56.u, l = 62.u, t = 644.u))
+        upNextText = ctx.text("", 17f, Fonts.bold)
         upNext = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(18.u, 0, 14.u, 0)
-            background = rounded(0x0FFFFFFF, 26)
-            addView(ctx.label("Up next", C.TEXT3, 14f), linear(WRAP, WRAP, r = 14.u))
+            setPadding(18.u, 0, 12.u, 0)
+            background = rounded(0x0FFFFFFF, 28)
+            addView(ctx.label("Next", C.TEXT3, 13f), linear(WRAP, WRAP, r = 12.u))
             addView(upNextText, linear(0, WRAP, 1f))
             addView(ctx.icon(R.drawable.ic_chevron_right, 20, C.TEXT2), linear(20.u, 20.u))
             pressable(0.97f) { host.showQueue() }
         }
-        info.addView(upNext, frame(MATCH, 52.u, t = 640.u))
+        info.addView(upNext, frame(MATCH, 56.u, l = 128.u, t = 644.u))
+
+        // Glance mode's bottom line: what's coming next, readable at a glance.
+        glanceNext = ctx.text("", 26f, Fonts.bold, C.alpha(C.TEXT, 0.62f)).apply { alpha = 0f }
+        info.addView(glanceNext, frame(GLANCE_COL.u, WRAP, t = 652.u))
 
         badge = ctx.text("", 15f, Fonts.extraBold, C.BEE).apply {
             setPadding(14.u, 6.u, 14.u, 6.u)
             alpha = 0f
         }
-        info.addView(badge, frame(WRAP, WRAP, Gravity.END, t = 74.u))
+        info.addView(badge, frame(WRAP, WRAP, Gravity.END, t = 64.u))
 
         // Nothing queued yet: a calm invitation instead of dead controls.
         empty = LinearLayout(ctx).apply {
@@ -207,14 +216,22 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         return surface
     }
 
-    /** Positions the cover and info column for the driver side. */
+    /** Positions the cover and info column for the driver side (content area is 1148×720). */
     fun relayout() {
         if (!::carousel.isInitialized) return
         val right = Prefs.driverRight
-        (carousel.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else 548.u
-        (info.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 620.u else 36.u
+        (carousel.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else (1148 - CoverCarousel.WIDTH).u
+        (info.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 712.u else 32.u
+        // In glance mode the text grows into the space the rail frees, on whichever side it is.
+        (glanceText.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else -(GLANCE_COL - COL).u
+        (glanceNext.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else -(GLANCE_COL - COL).u
         carousel.requestLayout()
         info.requestLayout()
+    }
+
+    private companion object {
+        const val COL = 404
+        const val GLANCE_COL = 528
     }
 
     fun coverView(): View = carousel.currentCoverView()
@@ -329,6 +346,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         shuffle.set(s.shuffle, accent.accent)
         repeat.set(s.repeat != Player.REPEAT_MODE_OFF, accent.accent, one = s.repeat == Player.REPEAT_MODE_ONE)
         upNextText.text = s.next?.let { "${it.title}  ·  ${it.artistLabel}" } ?: "End of queue"
+        glanceNext.text = s.next?.let { "Next · ${it.title}" } ?: ""
         chipText.text = s.context.label.ifBlank { s.current?.parent?.substringAfterLast('/') ?: "" }
         if (s.current?.path != lastPath) {
             lastPath = s.current?.path
@@ -453,12 +471,13 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             it.animate().alpha(0f).setDuration(d).start()
             it.isEnabled = false
         }
+        glanceNext.animate().alpha(1f).setStartDelay(160).setDuration(d).start()
         trackText.animate().alpha(0f).translationY(-8f.u).setDuration(d).start()
         glanceText.translationY = 10f.u
         glanceText.animate().alpha(1f).translationY(0f).setDuration(d).setStartDelay(80).setInterpolator(Motion.emphasized).start()
-        listOf(prev, next).forEach { it.animate().scaleX(1.08f).scaleY(1.08f).setDuration(d).setInterpolator(Motion.emphasized).start() }
-        play.animate().scaleX(1.1f).scaleY(1.1f).setDuration(d).setInterpolator(Motion.emphasized).start()
-        carousel.animate().scaleX(1.06f).scaleY(1.06f).setDuration(d).setInterpolator(Motion.emphasized).start()
+        listOf(prev, next).forEach { it.animate().scaleX(1.12f).scaleY(1.12f).setDuration(d).setInterpolator(Motion.emphasized).start() }
+        play.animate().scaleX(1.12f).scaleY(1.12f).setDuration(d).setInterpolator(Motion.emphasized).start()
+        carousel.animate().scaleX(1.1f).scaleY(1.1f).setDuration(d).setInterpolator(Motion.emphasized).start()
         host.setGlance(true)
     }
 
@@ -471,6 +490,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             it.isEnabled = true
         }
         trackText.animate().alpha(1f).translationY(0f).setDuration(d).setStartDelay(40).start()
+        glanceNext.animate().alpha(0f).setStartDelay(0).setDuration(d / 2).start()
         glanceText.animate().alpha(0f).setDuration(d * 2 / 3).setStartDelay(0).start()
         listOf(prev, next, play).forEach { it.animate().scaleX(1f).scaleY(1f).setDuration(d).setInterpolator(Motion.emphasized).start() }
         carousel.animate().scaleX(1f).scaleY(1f).setDuration(d).setInterpolator(Motion.emphasized).start()
@@ -483,8 +503,8 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         override fun run() {
             if (!glance || state.playing) return
             if (!Motion.reduced) {
-                play.animate().scaleX(1.2f).scaleY(1.2f).setDuration(220).setInterpolator(Motion.emphasized).withEndAction {
-                    play.animate().scaleX(1.1f).scaleY(1.1f).setDuration(380).start()
+                play.animate().scaleX(1.22f).scaleY(1.22f).setDuration(220).setInterpolator(Motion.emphasized).withEndAction {
+                    play.animate().scaleX(1.12f).scaleY(1.12f).setDuration(380).start()
                 }.start()
             }
             handler.postDelayed(this, 4_000)

@@ -19,6 +19,6 @@ class BumblebeeApp : Application() {
         ArtLoader.init(this)
         Fonts.init(this)
         Indexer.init(this)
-        D.init(this)
+        D.init(this, Prefs.immersive)
     }
 }

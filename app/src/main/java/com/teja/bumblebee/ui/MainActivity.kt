@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        D.init(this)
+        D.init(this, Prefs.immersive)
         buildShell()
         Immersive.apply(this, Prefs.immersive)
         PlayerHub.connect(this)
