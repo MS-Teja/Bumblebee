@@ -9,15 +9,19 @@ It was built for a budget 1280×720 head unit (Unisoc SC7731E, quad Cortex‑A7,
   <img src="docs/screenshots/car_glance.jpg" width="49%" alt="Glance mode: big title and controls for driving">
 </p>
 <p>
-  <img src="docs/screenshots/car_home.jpg" width="32.5%" alt="Home">
-  <img src="docs/screenshots/car_folder.jpg" width="32.5%" alt="A folder with subfolders and songs">
-  <img src="docs/screenshots/car_library.jpg" width="32.5%" alt="Library">
+  <img src="docs/screenshots/car_home.jpg" width="49%" alt="Home">
+  <img src="docs/screenshots/car_folder.jpg" width="49%" alt="A folder with subfolders and songs">
 </p>
 <p>
-  <img src="docs/screenshots/phone_home.jpg" width="24%" alt="Home on a phone">
-  <img src="docs/screenshots/phone_player.jpg" width="24%" alt="Full-screen player on a phone">
-  <img src="docs/screenshots/phone_folder.jpg" width="24%" alt="Folder on a phone">
-  <img src="docs/screenshots/phone_library.jpg" width="24%" alt="Library on a phone">
+  <img src="docs/screenshots/car_library.jpg" width="49%" alt="Library">
+  <img src="docs/screenshots/car_queue.jpg" width="49%" alt="The queue: drag to reorder what plays next">
+</p>
+<p>
+  <img src="docs/screenshots/phone_home.jpg" width="19.5%" alt="Home on a phone">
+  <img src="docs/screenshots/phone_player.jpg" width="19.5%" alt="Full-screen player on a phone">
+  <img src="docs/screenshots/phone_folder.jpg" width="19.5%" alt="Folder on a phone">
+  <img src="docs/screenshots/phone_library.jpg" width="19.5%" alt="Library on a phone">
+  <img src="docs/screenshots/phone_queue.jpg" width="19.5%" alt="The queue on a phone">
 </p>
 
 ## Features
@@ -50,7 +54,7 @@ It was built for a budget 1280×720 head unit (Unisoc SC7731E, quad Cortex‑A7,
 
 ## Install
 
-Build an APK (below), then install it:
+Download the APK from [Releases](https://github.com/MS-Teja/Bumblebee/releases/latest), or build it yourself (below). Then install it:
 
 - **Phone:** `adb install app-release.apk`, or open the file on the phone.
 - **Head unit:** most units are USB *hosts*, so a cable to a computer won't work. Either:
@@ -100,4 +104,7 @@ The release build is signed with the debug key so it installs without extra setu
 - [Permanent Marker](https://fonts.google.com/specimen/Permanent+Marker) by Font Diner, under the Apache License 2.0.
 - Built on [AndroidX Media3](https://developer.android.com/media/media3).
 
-"Bumblebee" is a fan nod to the Transformers character who talks through his radio. This project is not affiliated with or endorsed by Hasbro or Paramount.
+
+## License
+
+[MIT](LICENSE) © MS-Teja
