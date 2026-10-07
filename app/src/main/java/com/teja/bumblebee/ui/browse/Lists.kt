@@ -311,12 +311,15 @@ class FolderCardAdapter(
 
 // ====================================================================== hero pane
 
-/** Left pane of folder / album / artist pages: big art, name, stats, Play + Shuffle. */
-class HeroPane(ctx: Context, round: Boolean = false) : LinearLayout(ctx) {
-    val art = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; if (round) ovalClip() else roundCorners(30) }
-    val title: TextView = ctx.text("", 36f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }
+/**
+ * Header of folder / album / artist pages: a left pane in landscape (big art over the text), a
+ * compact band in portrait (art beside the text) so the list keeps most of the height.
+ */
+class HeroPane(ctx: Context, round: Boolean = false, val compact: Boolean = com.teja.bumblebee.ui.design.D.portrait) : LinearLayout(ctx) {
+    val art = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; if (round) ovalClip() else roundCorners(if (compact) 24 else 30) }
+    val title: TextView = ctx.text("", if (compact) 32f else 36f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }
     val subtitle: TextView = ctx.text("", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f), lines = 2)
-    val play = PillButton(ctx, "Play", R.drawable.ic_play, 72, true, C.BEE)
+    val play = PillButton(ctx, "Play", R.drawable.ic_play, if (compact) 64 else 72, true, C.BEE)
     val shuffle = FrameLayout(ctx).apply {
         background = outlineCircle(0x47FFFFFF, 2)
         addView(ctx.icon(R.drawable.ic_shuffle, 28, C.TEXT), frame(28.u, 28.u, Gravity.CENTER))
@@ -324,21 +327,50 @@ class HeroPane(ctx: Context, round: Boolean = false) : LinearLayout(ctx) {
     }
 
     init {
-        orientation = VERTICAL
-        setPadding(40.u, 34.u, 20.u, 0)
-        addView(art, linear(300.u, 300.u))
-        addView(title, linear(MATCH, WRAP, t = 22.u))
-        addView(subtitle, linear(MATCH, WRAP, t = 6.u))
+        val btn = if (compact) 64 else 72
         val buttons = LinearLayout(ctx).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(play, linear(WRAP, 72.u, r = 14.u))
-            addView(shuffle, linear(72.u, 72.u))
+            addView(play, linear(WRAP, btn.u, r = 14.u))
+            addView(shuffle, linear(btn.u, btn.u))
         }
-        addView(buttons, linear(MATCH, WRAP, t = 22.u))
+        if (compact) {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(32.u, 28.u, 32.u, 8.u)
+            addView(art, linear(220.u, 220.u, r = 28.u))
+            addView(LinearLayout(ctx).apply {
+                orientation = VERTICAL
+                addView(title, linear(MATCH, WRAP))
+                addView(subtitle, linear(MATCH, WRAP, t = 6.u))
+                addView(buttons, linear(MATCH, WRAP, t = 18.u))
+            }, linear(0, WRAP, 1f))
+        } else {
+            orientation = VERTICAL
+            setPadding(40.u, 34.u, 20.u, 0)
+            // The art takes the pane's width, capped so the text below still fits short screens.
+            val side = minOf(300, com.teja.bumblebee.ui.design.D.contentH - 420).coerceAtLeast(180)
+            addView(art, linear(side.u, side.u))
+            addView(title, linear(MATCH, WRAP, t = 22.u))
+            addView(subtitle, linear(MATCH, WRAP, t = 6.u))
+            addView(buttons, linear(MATCH, WRAP, t = 22.u))
+        }
     }
 
     fun setAccent(c: Int) = play.setAccent(c)
+}
+
+/** Lays out a [HeroPane] beside (landscape) or above (portrait) the page's content. */
+fun heroLayout(ctx: Context, hero: HeroPane, content: View): LinearLayout = LinearLayout(ctx).apply {
+    if (hero.compact) {
+        orientation = LinearLayout.VERTICAL
+        addView(hero, linear(MATCH, WRAP))
+        addView(content, linear(MATCH, 0, 1f))
+    } else {
+        orientation = LinearLayout.HORIZONTAL
+        addView(hero, linear(380.u, MATCH))
+        addView(content, linear(0, MATCH, 1f))
+    }
 }
 
 // ====================================================================== A–Z rail

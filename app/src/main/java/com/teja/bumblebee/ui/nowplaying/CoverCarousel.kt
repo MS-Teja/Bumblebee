@@ -33,15 +33,7 @@ import kotlin.math.sign
  * The release velocity carries into a spring. Every skip — swipe, button, steering wheel — runs
  * through the same animation, and a new swipe can grab the deck mid-flight.
  */
-class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
-
-    companion object {
-        /** Cover geometry inside the carousel (design px): a 600px cover with 60px top/bottom margins. */
-        const val SIZE = 600
-        const val LEFT = 40
-        const val TOP = 60
-        const val WIDTH = 680
-    }
+class CoverCarousel(ctx: Context, sizeDp: Int, leftDp: Int, topDp: Int) : FrameLayout(ctx) {
 
     interface Listener {
         /** Signed drag progress: negative while the next song comes in, positive for the previous one. */
@@ -53,11 +45,11 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
     }
 
     var listener: Listener? = null
-    val coverSize = SIZE.u
+    val coverSize = sizeDp.u
     private val gap = 24.u
     private val step = (coverSize + gap).toFloat()
-    private val coverLeft = LEFT.u
-    private val coverTop = TOP.u
+    private val coverLeft = leftDp.u
+    private val coverTop = topDp.u
 
     private val slots = Array(3) { ImageView(ctx) }
     private val tracks = arrayOfNulls<Track>(3)
@@ -104,7 +96,7 @@ class CoverCarousel(ctx: Context) : FrameLayout(ctx) {
         isChildrenDrawingOrderEnabled = true
         // The outgoing card may travel past the cover area while it fades.
         clipChildren = false
-        val glowSize = 540.u
+        val glowSize = (sizeDp * 0.9f).toInt().u
         glowDrawable.paint.shader = RadialGradient(
             glowSize / 2f, glowSize / 2f, glowSize / 2f,
             intArrayOf(0xFFFFFFFF.toInt(), 0x55FFFFFF, 0x00FFFFFF), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP,

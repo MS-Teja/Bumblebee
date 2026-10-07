@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        D.init(this, Prefs.immersive)
+        D.init(this as android.app.Activity, Prefs.immersive)
         buildShell()
         Immersive.apply(this, Prefs.immersive)
         PlayerHub.connect(this)
@@ -148,18 +148,23 @@ class MainActivity : ComponentActivity() {
         backdrop = AmbientBackdrop(this)
         root.addView(backdrop, frame(MATCH, MATCH))
 
-        shell = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false }
-        content = FrameLayout(this).apply { clipChildren = false }
-        screenHost = FrameLayout(this).apply { clipChildren = false }
+        // Landscape glance text grows into the rail's slot, so the shell must not clip it there;
+        // in portrait nothing overflows and clipping keeps scrolled content off the bottom bar.
+        val overflow = !D.portrait
+        shell = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = !overflow }
+        content = FrameLayout(this).apply { clipChildren = !overflow }
+        screenHost = FrameLayout(this).apply { clipChildren = !overflow }
         content.addView(screenHost, frame(MATCH, MATCH))
         mini = MiniPlayer(this) { showTab(Tab.NOW, fromMini = true) }.apply {
             onPrev = { PlayerHub.prev() }
             onNext = { PlayerHub.next() }
             onToggle = { PlayerHub.toggle() }
             translationY = 104f.u
+            alpha = 0f
+            visibility = View.INVISIBLE
         }
         content.addView(mini, frame(MATCH, 104.u, Gravity.BOTTOM))
-        rail = Rail(this, onSelect = { showTab(it) }, onExit = { exitToLauncher() })
+        rail = Rail(this, horizontal = D.portrait, onSelect = { showTab(it) }, onExit = { exitToLauncher() })
         arrangeShell()
         root.addView(shell, frame(MATCH, MATCH))
 
@@ -179,12 +184,23 @@ class MainActivity : ComponentActivity() {
 
     private fun arrangeShell() {
         shell.removeAllViews()
-        if (Prefs.driverRight) {
-            shell.addView(content, linear(0, MATCH, 1f))
-            shell.addView(rail, linear(132.u, MATCH))
-        } else {
-            shell.addView(rail, linear(132.u, MATCH))
-            shell.addView(content, linear(0, MATCH, 1f))
+        when {
+            // Portrait panels: navigation becomes a bottom bar under the content.
+            D.portrait -> {
+                shell.orientation = LinearLayout.VERTICAL
+                shell.addView(content, linear(MATCH, 0, 1f))
+                shell.addView(rail, linear(MATCH, D.BAR.u))
+            }
+            Prefs.driverRight -> {
+                shell.orientation = LinearLayout.HORIZONTAL
+                shell.addView(content, linear(0, MATCH, 1f))
+                shell.addView(rail, linear(D.RAIL.u, MATCH))
+            }
+            else -> {
+                shell.orientation = LinearLayout.HORIZONTAL
+                shell.addView(rail, linear(D.RAIL.u, MATCH))
+                shell.addView(content, linear(0, MATCH, 1f))
+            }
         }
     }
 
@@ -383,8 +399,13 @@ class MainActivity : ComponentActivity() {
 
     private fun updateMini(to: Screen, animate: Boolean) {
         val show = to.showsMiniPlayer && PlayerHub.state.value.current != null
-        val target = if (show) 0f else 104f.u
-        if (animate) mini.animate().translationY(target).setDuration(Motion.ms(300)).setInterpolator(Motion.emphasized).start() else mini.translationY = target
+        if (show == (mini.visibility == View.VISIBLE && mini.translationY == 0f)) return
+        // Slide + fade, then go invisible: in portrait the bottom bar sits right under the mini-player.
+        if (show) mini.visibility = View.VISIBLE
+        val a = mini.animate().translationY(if (show) 0f else 104f.u).alpha(if (show) 1f else 0f)
+            .setDuration(if (animate) Motion.ms(300) else 0).setInterpolator(Motion.emphasized)
+        if (!show) a.withEndAction { if (mini.translationY != 0f) mini.visibility = View.INVISIBLE }
+        a.start()
     }
 
     /** Shared-element style cover flight between the mini-player and Now Playing. */

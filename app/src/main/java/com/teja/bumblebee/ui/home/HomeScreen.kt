@@ -92,7 +92,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
 
         body.addView(sectionLabel(ctx, "Sources"), linear(MATCH, WRAP, t = 26.u))
         sourcesRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        body.addView(sourcesRow, linear(MATCH, 112.u, t = 12.u))
+        body.addView(sourcesRow, linear(MATCH, WRAP, t = 12.u))
 
         sections = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         body.addView(sections, linear(MATCH, WRAP))
@@ -268,6 +268,9 @@ class HomeScreen(host: MainActivity) : Screen(host) {
 
     private fun renderSources(list: List<Triple<Volume, Int, Int>>) {
         sourcesRow.removeAllViews()
+        // Two cards side by side when there's room; stacked on narrow / portrait screens.
+        val stacked = list.size > 1 && com.teja.bumblebee.ui.design.D.contentW < 1000
+        sourcesRow.orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
         list.forEachIndexed { i, (v, songs, folders) ->
             val art = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP; roundCorners(16) }
             ArtLoader.bindFolder(art, v.path, "Mixtape Vol. ${v.mixtape}", ArtLoader.Size.SMALL)
@@ -318,7 +321,7 @@ class HomeScreen(host: MainActivity) : Screen(host) {
                     contentDescription = "Shuffle everything"
                 }, linear(64.u, 64.u, l = 12.u))
             }
-            sourcesRow.addView(cardView, linear(0, MATCH, 1f, r = if (i < list.lastIndex) 16.u else 0))
+            sourcesRow.addView(cardView, if (stacked) linear(MATCH, 112.u, b = if (i < list.lastIndex) 12.u else 0) else linear(0, 112.u, 1f, r = if (i < list.lastIndex) 16.u else 0))
         }
     }
 }

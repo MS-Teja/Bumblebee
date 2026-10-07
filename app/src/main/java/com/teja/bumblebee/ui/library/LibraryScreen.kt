@@ -29,6 +29,8 @@ import com.teja.bumblebee.ui.browse.TrackItem
 import com.teja.bumblebee.ui.browse.emptyState
 import com.teja.bumblebee.ui.browse.staggerIn
 import com.teja.bumblebee.ui.design.C
+import com.teja.bumblebee.ui.design.D
+import android.widget.HorizontalScrollView
 import com.teja.bumblebee.ui.design.Fonts
 import com.teja.bumblebee.ui.design.MATCH
 import com.teja.bumblebee.ui.design.WRAP
@@ -80,7 +82,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
             row.addView(tv, linear(190.u, 52.u))
         }
         seg.addView(row, frame(WRAP, MATCH, l = 4.u))
-        root.addView(seg, linear(4 * 190.u + 8.u, 60.u, t = 18.u))
+        root.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(seg, android.widget.FrameLayout.LayoutParams(4 * 190.u + 8.u, 60.u)) }, linear(MATCH, 60.u, t = 18.u))
 
         listHost = FrameLayout(ctx)
         list = RecyclerView(ctx).apply {
@@ -125,7 +127,7 @@ class LibraryScreen(host: MainActivity) : Screen(host) {
             when (page) {
                 Page.ALBUMS -> {
                     val albums = withContext(Dispatchers.IO) { Library.albums() }
-                    list.layoutManager = GridLayoutManager(ctx, 5)
+                    list.layoutManager = GridLayoutManager(ctx, ((D.contentW - 76) / 220).coerceIn(2, 8))
                     list.adapter = AlbumAdapter(albums) { a, art -> host.openDetail(DetailScreen.album(host, a.name, a.sample.albumArtist, art.drawable), art) }
                     if (albums.isEmpty()) showEmpty()
                 }
@@ -256,13 +258,11 @@ class DetailScreen private constructor(
     private var tracks: List<Track> = emptyList()
 
     override fun build(): View {
-        val root = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         hero = HeroPane(ctx, round)
         hero.title.text = titleText
         initialArt?.let { hero.art.setImageDrawable(it.constantState?.newDrawable() ?: it) }
         hero.play.pressable { if (tracks.isNotEmpty()) PlayerHub.play(tracks, 0, PlayContext(titleText, null)) }
         hero.shuffle.pressable { if (tracks.isNotEmpty()) PlayerHub.play(tracks, 0, PlayContext(titleText, null), shuffle = true) }
-        root.addView(hero, linear(380.u, MATCH))
         val back = ctx.text("‹  Library", 18f, Fonts.bold, C.alpha(C.TEXT, 0.6f)).apply {
             setPadding(10.u, 16.u, 10.u, 16.u)
             pressable(0.95f) { host.pop() }
@@ -281,11 +281,11 @@ class DetailScreen private constructor(
         list.adapter = tracksAdapter
         val col = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(8.u, 22.u, 0, 0)
+            setPadding(if (hero.compact) 24.u else 8.u, if (hero.compact) 0 else 22.u, 0, 0)
             addView(back, linear(WRAP, 56.u))
             addView(list, linear(MATCH, 0, 1f))
         }
-        root.addView(col, linear(0, MATCH, 1f))
+        val root = com.teja.bumblebee.ui.browse.heroLayout(ctx, hero, col)
         scope.launch {
             tracks = withContext(Dispatchers.IO) { loader() }
             tracksAdapter.submit(tracks.mapIndexed { i, t -> TrackItem(t, if (showArtInRows) i + 1 else t.trackNo.takeIf { it > 0 } ?: (i + 1), showArt = showArtInRows) })

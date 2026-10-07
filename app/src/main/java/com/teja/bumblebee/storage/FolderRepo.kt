@@ -105,7 +105,10 @@ object FolderRepo {
         val name = path.substringAfterLast('/')
         val generic = Regex("^(cd|disc|disk|vol|volume|part)\\s*\\d+$|^(songs|music|mp3|audio|new folder|misc|others?)$", RegexOption.IGNORE_CASE)
         if (!generic.matches(name.trim())) return name
-        val parent = path.substringBeforeLast('/').substringAfterLast('/')
+        val parentPath = path.substringBeforeLast('/')
+        // Never prefix with a drive root ("0 · Music" on internal storage).
+        if (Volumes.all.value.any { it.path == parentPath } || parentPath.count { it == '/' } <= 2) return name
+        val parent = parentPath.substringAfterLast('/')
         return if (parent.isBlank()) name else "$parent · $name"
     }
 

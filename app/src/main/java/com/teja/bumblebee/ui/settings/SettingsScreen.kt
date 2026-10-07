@@ -173,12 +173,19 @@ class SettingsScreen(host: MainActivity) : Screen(host) {
             chips.addView(tv, linear(WRAP, 56.u, l = 8.u))
         }
         paint(value)
+        // Narrow screens: options wrap under the title instead of squeezing it.
+        val narrow = com.teja.bumblebee.ui.design.D.contentW < 1000
         val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = if (narrow) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = if (narrow) Gravity.START else Gravity.CENTER_VERTICAL
             setPadding(0, 12.u, 0, 12.u)
-            addView(titles(title, sub), linear(0, WRAP, 1f, r = 16.u))
-            addView(chips, linear(WRAP, WRAP))
+            addView(titles(title, sub), if (narrow) linear(MATCH, WRAP, b = 10.u) else linear(0, WRAP, 1f, r = 16.u))
+            if (narrow) {
+                (chips.getChildAt(0)?.layoutParams as? LinearLayout.LayoutParams)?.leftMargin = 0
+                addView(android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, linear(MATCH, WRAP))
+            } else {
+                addView(chips, linear(WRAP, WRAP))
+            }
         }
         addView(row, linear(MATCH, WRAP))
     }

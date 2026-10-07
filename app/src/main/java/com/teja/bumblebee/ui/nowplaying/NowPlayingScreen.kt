@@ -19,6 +19,7 @@ import com.teja.bumblebee.playback.PlayerHub
 import com.teja.bumblebee.ui.MainActivity
 import com.teja.bumblebee.ui.design.Accent
 import com.teja.bumblebee.ui.design.C
+import com.teja.bumblebee.ui.design.D
 import com.teja.bumblebee.ui.design.CircleButton
 import com.teja.bumblebee.ui.design.Fonts
 import com.teja.bumblebee.ui.design.MATCH
@@ -76,6 +77,8 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     private lateinit var upNextText: TextView
     private lateinit var badge: TextView
     private lateinit var empty: LinearLayout
+    private lateinit var geo: Geo
+    private var nextPanel: NextPanel? = null
     private lateinit var glanceNext: TextView
 
     private val handler = Handler(Looper.getMainLooper())
@@ -96,19 +99,21 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
     // ------------------------------------------------------------------ build
 
     override fun build(): View {
+        val g = Geo.compute()
+        geo = g
         surface = SwipeSurface(ctx).apply { clipChildren = false }
-        carousel = CoverCarousel(ctx).apply {
-            pivotX = (CoverCarousel.LEFT + CoverCarousel.SIZE / 2f).u
-            pivotY = 360f.u
+        carousel = CoverCarousel(ctx, g.cover, g.coverInsetX, g.coverInsetY).apply {
+            pivotX = (g.coverInsetX + g.cover / 2f).u
+            pivotY = (g.coverInsetY + g.cover / 2f).u
         }
-        surface.addView(carousel, frame(CoverCarousel.WIDTH.u, 720.u))
+        surface.addView(carousel, frame(g.carouselW.u, g.carouselH.u))
 
-        // Driver-side column: 404px wide, laid out top to bottom so every band is used.
+        // The controls column: laid out top to bottom from the geometry so every band is used.
         info = FrameLayout(ctx).apply { clipChildren = false }
-        surface.addView(info, frame(COL.u, 720.u))
+        surface.addView(info, frame(g.colW.u, g.colH.u))
 
         labelTop = ctx.label("Playing from", C.TEXT3, 15f)
-        info.addView(labelTop, frame(MATCH, WRAP, t = 62.u))
+        info.addView(labelTop, frame(MATCH, WRAP, t = 2.u))
         chipText = ctx.text("", 22f, Fonts.bold, C.alpha(C.TEXT, 0.82f))
         chip = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -117,15 +122,15 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             addView(ctx.icon(R.drawable.ic_chevron_right, 22, C.alpha(C.TEXT, 0.82f)), linear(22.u, 22.u, l = 6.u))
             pressable(0.96f) { state.context.path?.let { host.openFolder(it, state.current?.path) } }
         }
-        info.addView(chip, frame(WRAP, 48.u, t = 80.u))
+        info.addView(chip, frame(WRAP, 48.u, t = 20.u))
 
-        trackText = TrackText(ctx, 56f, 28f, showAlbum = true, fitWidth = COL, minTitle = 34f)
-        info.addView(trackText, frame(MATCH, 230.u, t = 150.u))
-        glanceText = TrackText(ctx, 88f, 36f, showAlbum = false, fitWidth = GLANCE_COL, minTitle = 50f).apply { alpha = 0f }
-        info.addView(glanceText, frame(GLANCE_COL.u, 320.u, t = 136.u))
+        trackText = TrackText(ctx, g.titleSize, 28f, showAlbum = true, fitWidth = g.colW, minTitle = 32f)
+        info.addView(trackText, frame(MATCH, g.textH.u, t = g.textT.u))
+        glanceText = TrackText(ctx, g.glanceTitle, 36f, showAlbum = false, fitWidth = g.glanceW, minTitle = 50f).apply { alpha = 0f }
+        info.addView(glanceText, frame(g.glanceW.u, (g.textH + 90).u, t = (g.textT - 14).u))
 
         seek = DragSeekBar(ctx)
-        info.addView(seek, frame(MATCH, 56.u, t = 390.u))
+        info.addView(seek, frame(MATCH, 56.u, t = g.seekT.u))
         elapsed = ctx.text("0:00", 17f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f)).apply { fontFeatureSettings = "tnum" }
         remaining = ctx.text("", 17f, Fonts.semiBold, C.alpha(C.TEXT, 0.62f)).apply {
             fontFeatureSettings = "tnum"
@@ -133,15 +138,15 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             setPadding(16.u, 6.u, 0, 6.u)
             pressable(0.96f) { showRemaining = !showRemaining; tickProgress() }
         }
-        info.addView(elapsed, frame(WRAP, WRAP, l = 11.u, t = 444.u))
-        info.addView(remaining, frame(WRAP, WRAP, Gravity.END, r = 11.u, t = 438.u))
+        info.addView(elapsed, frame(WRAP, WRAP, l = 11.u, t = (g.seekT + 54).u))
+        info.addView(remaining, frame(WRAP, WRAP, Gravity.END, r = 11.u, t = (g.seekT + 48).u))
         bubble = ctx.text("", 20f, Fonts.extraBold, C.INK).apply {
             background = rounded(C.TEXT, 12)
             setPadding(14.u, 6.u, 14.u, 6.u)
             fontFeatureSettings = "tnum"
             alpha = 0f
         }
-        info.addView(bubble, frame(WRAP, WRAP, t = 346.u))
+        info.addView(bubble, frame(WRAP, WRAP, t = (g.seekT - 44).u))
 
         // Transport spans the full column; centres stay fixed so glance mode only scales them in place.
         prev = CircleButton(ctx, R.drawable.ic_prev, 104, 44, 0x14FFFFFF, C.TEXT).apply { contentDescription = "Previous" }
@@ -150,16 +155,17 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         prev.pressable(0.9f, onLongClick = { PlayerHub.seekBy(-10_000) }) { onUserActivity(); PlayerHub.prev() }
         next.pressable(0.9f, onLongClick = { PlayerHub.seekBy(10_000) }) { onUserActivity(); PlayerHub.next() }
         play.pressable(0.92f) { onUserActivity(); PlayerHub.toggle() }
-        val mid = COL / 2
-        info.addView(prev, frame(104.u, 104.u, l = (mid - 150 - 52).u, t = 500.u))
-        info.addView(play, frame(144.u, 144.u, l = (mid - 72).u, t = 480.u))
-        info.addView(next, frame(104.u, 104.u, l = (mid + 150 - 52).u, t = 500.u))
+        val mid = g.colW / 2
+        val spread = ((g.colW - 104) / 2).coerceAtMost(176)
+        info.addView(prev, frame(104.u, 104.u, l = (mid - spread - 52).u, t = (g.playT + 20).u))
+        info.addView(play, frame(144.u, 144.u, l = (mid - 72).u, t = g.playT.u))
+        info.addView(next, frame(104.u, 104.u, l = (mid + spread - 52).u, t = (g.playT + 20).u))
 
         // Bottom row: shuffle, repeat and "up next" share one band.
         shuffle = ToggleIcon(ctx, R.drawable.ic_shuffle, 56, 26).apply { pressable { PlayerHub.toggleShuffle() }; contentDescription = "Shuffle" }
         repeat = ToggleIcon(ctx, R.drawable.ic_repeat, 56, 26).apply { pressable { PlayerHub.cycleRepeat() }; contentDescription = "Repeat" }
-        info.addView(shuffle, frame(56.u, 56.u, t = 644.u))
-        info.addView(repeat, frame(56.u, 56.u, l = 62.u, t = 644.u))
+        info.addView(shuffle, frame(56.u, 56.u, t = g.bottomT.u))
+        info.addView(repeat, frame(56.u, 56.u, l = 62.u, t = g.bottomT.u))
         upNextText = ctx.text("", 17f, Fonts.bold)
         upNext = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -171,28 +177,34 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
             addView(ctx.icon(R.drawable.ic_chevron_right, 20, C.TEXT2), linear(20.u, 20.u))
             pressable(0.97f) { host.showQueue() }
         }
-        info.addView(upNext, frame(MATCH, 56.u, l = 128.u, t = 644.u))
+        info.addView(upNext, frame(MATCH, 56.u, l = 128.u, t = g.bottomT.u))
 
         // Glance mode's bottom line: what's coming next, readable at a glance.
         glanceNext = ctx.text("", 26f, Fonts.bold, C.alpha(C.TEXT, 0.62f)).apply { alpha = 0f }
-        info.addView(glanceNext, frame(GLANCE_COL.u, WRAP, t = 652.u))
+        info.addView(glanceNext, frame(g.glanceW.u, WRAP, t = (g.bottomT + 8).u))
 
         badge = ctx.text("", 15f, Fonts.extraBold, C.BEE).apply {
             setPadding(14.u, 6.u, 14.u, 6.u)
             alpha = 0f
         }
-        info.addView(badge, frame(WRAP, WRAP, Gravity.END, t = 64.u))
+        info.addView(badge, frame(WRAP, WRAP, Gravity.END, t = 4.u))
+
+        if (g.panelW > 0) {
+            nextPanel = NextPanel(ctx) { index -> onUserActivity(); PlayerHub.jumpTo(index) }
+            surface.addView(nextPanel, frame(g.panelW.u, WRAP, l = g.panelX.u, t = g.colY.u))
+        }
 
         // Nothing queued yet: a calm invitation instead of dead controls.
         empty = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = if (D.portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            gravity = if (D.portrait) Gravity.CENTER else Gravity.CENTER_VERTICAL
             setPadding(48.u, 0, 40.u, 0)
             val cassette = android.widget.ImageView(ctx).apply {
                 setImageDrawable(com.teja.bumblebee.art.CassetteCover("Mixtape Vol. 1", "bumblebee"))
                 roundCorners(30)
             }
-            addView(cassette, linear(420.u, 420.u, r = 56.u))
+            val side = minOf(420, (if (D.portrait) D.contentW - 96 else D.contentH - 160))
+            addView(cassette, if (D.portrait) linear(side.u, side.u, b = 48.u) else linear(side.u, side.u, r = 56.u))
             addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(ctx.text("Nothing playing yet", 46f, Fonts.extraBold, lines = 2).apply { letterSpacing = -0.02f }, linear(MATCH, WRAP))
@@ -206,7 +218,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
                         pressable { host.showTab(Tab.HOME) }
                     }, linear(WRAP, 72.u))
                 }, linear(WRAP, WRAP, t = 30.u))
-            }, linear(0, WRAP, 1f))
+            }, if (D.portrait) linear(MATCH, WRAP) else linear(0, WRAP, 1f))
             visibility = View.GONE
         }
         surface.addView(empty, frame(MATCH, MATCH))
@@ -216,22 +228,115 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         return surface
     }
 
-    /** Positions the cover and info column for the driver side (content area is 1148×720). */
+    /** Positions the cover and controls column (and mirrors them for left-hand drive). */
     fun relayout() {
         if (!::carousel.isInitialized) return
-        val right = Prefs.driverRight
-        (carousel.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else (1148 - CoverCarousel.WIDTH).u
-        (info.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 712.u else 32.u
-        // In glance mode the text grows into the space the rail frees, on whichever side it is.
-        (glanceText.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else -(GLANCE_COL - COL).u
-        (glanceNext.layoutParams as FrameLayout.LayoutParams).leftMargin = if (right) 0 else -(GLANCE_COL - COL).u
+        val g = Geo.compute()
+        geo = g
+        val c = carousel.layoutParams as FrameLayout.LayoutParams
+        val i = info.layoutParams as FrameLayout.LayoutParams
+        c.leftMargin = g.carouselX.u; c.topMargin = g.carouselY.u
+        i.leftMargin = g.colX.u; i.topMargin = g.colY.u
+        // Glance text grows into the space the rail frees, on whichever side the rail is.
+        val extra = g.glanceW - g.colW
+        (glanceText.layoutParams as FrameLayout.LayoutParams).leftMargin = if (g.glanceGrowsLeft) -extra.u else 0
+        (glanceNext.layoutParams as FrameLayout.LayoutParams).leftMargin = if (g.glanceGrowsLeft) -extra.u else 0
+        nextPanel?.let { (it.layoutParams as FrameLayout.LayoutParams).apply { leftMargin = g.panelX.u; topMargin = g.colY.u }; it.requestLayout() }
         carousel.requestLayout()
         info.requestLayout()
     }
 
-    private companion object {
-        const val COL = 404
-        const val GLANCE_COL = 528
+    /**
+     * Now Playing geometry in design px, computed from the content area so any screen works:
+     * 16:9 gets the reference layout; taller/narrower screens centre it; ultrawide centres the group
+     * with a wider column; portrait stacks the cover above the controls.
+     */
+    private class Geo(
+        val cover: Int, val coverInsetX: Int, val coverInsetY: Int,
+        val carouselX: Int, val carouselY: Int, val carouselW: Int, val carouselH: Int,
+        val colX: Int, val colY: Int, val colW: Int, val colH: Int,
+        val textT: Int, val textH: Int, val seekT: Int, val playT: Int, val bottomT: Int,
+        val titleSize: Float, val glanceW: Int, val glanceTitle: Float, val glanceGrowsLeft: Boolean,
+        val glanceScale: Float, val panelX: Int = 0, val panelW: Int = 0,
+    ) {
+        companion object {
+            private const val MIN_COL_H = 560
+
+            fun Geo.withPanel(x: Int, w: Int) = Geo(
+                cover, coverInsetX, coverInsetY, carouselX, carouselY, carouselW, carouselH,
+                colX, colY, colW, colH, textT, textH, seekT, playT, bottomT,
+                titleSize, glanceW, glanceTitle, glanceGrowsLeft, glanceScale, x, w,
+            )
+
+            fun compute(): Geo {
+                val cw = D.contentW
+                val ch = D.contentH
+                return if (D.portrait) portrait(cw, ch) else landscape(cw, ch)
+            }
+
+            private fun landscape(cw: Int, ch: Int): Geo {
+                val gap = 64
+                var s = minOf(ch - 120, cw - 404 - 40 - gap - 32)
+                s = s.coerceIn(320, 760)
+                val colW = (cw - 40 - s - gap - 32).coerceIn(360, 560)
+                var group = 40 + s + gap + colW + 32
+                // Ultrawide: spend spare width on an "up next" panel instead of empty margins.
+                val spare = cw - group
+                val panelW = if (spare >= 420) minOf(520, spare - 56) else 0
+                if (panelW > 0) group += 56 + panelW
+                val ox = maxOf(0, (cw - group) / 2)
+                val marginY = (ch - s) / 2
+                val colTop = marginY
+                val colBottom = minOf(ch - 20, marginY + s + 40)
+                val right = Prefs.driverRight
+                val pw = if (panelW > 0) 56 + panelW else 0
+                val carouselX = if (right) ox else ox + 32 + colW + pw + gap - 40
+                val colX = if (right) ox + 40 + s + gap else ox + 32
+                val panelX = if (panelW > 0) colX + colW + 56 else 0
+                val glanceExtra = if (ox >= D.RAIL / 2 || panelW > 0) 0 else D.RAIL - 8
+                return column(
+                    cover = s, insetX = 40, insetY = marginY,
+                    carouselX = carouselX, carouselY = 0, carouselW = s + 80, carouselH = ch,
+                    colX = colX, colY = colTop, colW = colW, colH = colBottom - colTop,
+                    glanceW = colW + glanceExtra, growsLeft = !right && glanceExtra > 0,
+                    glanceScale = ((ch - 60f) / s).coerceIn(1f, 1.12f),
+                ).let { if (panelW > 0) it.withPanel(panelX, panelW) else it }
+            }
+
+            private fun portrait(cw: Int, ch: Int): Geo {
+                val s = minOf(cw - 96, ch - 48 - 40 - MIN_COL_H - 24).coerceIn(280, 760)
+                val carouselW = s + 80
+                val colY = 48 + s + 40
+                val colW = minOf(cw - 96, 640)
+                return column(
+                    cover = s, insetX = 40, insetY = 48,
+                    carouselX = (cw - carouselW) / 2, carouselY = 0, carouselW = carouselW, carouselH = s + 96,
+                    colX = (cw - colW) / 2, colY = colY, colW = colW, colH = ch - colY - 24,
+                    glanceW = colW, growsLeft = false, glanceScale = 1.06f,
+                )
+            }
+
+            private fun column(
+                cover: Int, insetX: Int, insetY: Int,
+                carouselX: Int, carouselY: Int, carouselW: Int, carouselH: Int,
+                colX: Int, colY: Int, colW: Int, colH: Int,
+                glanceW: Int, growsLeft: Boolean, glanceScale: Float,
+            ): Geo {
+                // Bottom-up: shared row, transport, seek; the title block takes what's left at the top.
+                val h = maxOf(colH, MIN_COL_H)
+                val bottomT = h - 56
+                val playT = bottomT - 20 - 144
+                val seekT = playT - 90
+                val textT = 90
+                val textH = (seekT - 10 - textT).coerceAtLeast(150)
+                val title = if (textH >= 220) 56f else 48f
+                return Geo(
+                    cover, insetX, insetY, carouselX, carouselY, carouselW, carouselH,
+                    colX, colY, colW, h, textT, textH, seekT, playT, bottomT,
+                    title, glanceW, if (glanceW >= 500) 88f else 72f, growsLeft, glanceScale,
+                )
+            }
+        }
     }
 
     fun coverView(): View = carousel.currentCoverView()
@@ -347,6 +452,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         repeat.set(s.repeat != Player.REPEAT_MODE_OFF, accent.accent, one = s.repeat == Player.REPEAT_MODE_ONE)
         upNextText.text = s.next?.let { "${it.title}  ·  ${it.artistLabel}" } ?: "End of queue"
         glanceNext.text = s.next?.let { "Next · ${it.title}" } ?: ""
+        nextPanel?.bind(PlayerHub.upcoming(8), ((geo.colH - 60) / 84).coerceIn(3, 8))
         chipText.text = s.context.label.ifBlank { s.current?.parent?.substringAfterLast('/') ?: "" }
         if (s.current?.path != lastPath) {
             lastPath = s.current?.path
@@ -467,7 +573,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         if (glance || !state.playing || host.sheetOpen || waitingLabel != null) { scheduleGlance(); return }
         glance = true
         val d = Motion.ms(400)
-        listOf(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, badge).forEach {
+        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, badge, nextPanel).forEach {
             it.animate().alpha(0f).setDuration(d).start()
             it.isEnabled = false
         }
@@ -477,7 +583,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         glanceText.animate().alpha(1f).translationY(0f).setDuration(d).setStartDelay(80).setInterpolator(Motion.emphasized).start()
         listOf(prev, next).forEach { it.animate().scaleX(1.12f).scaleY(1.12f).setDuration(d).setInterpolator(Motion.emphasized).start() }
         play.animate().scaleX(1.12f).scaleY(1.12f).setDuration(d).setInterpolator(Motion.emphasized).start()
-        carousel.animate().scaleX(1.1f).scaleY(1.1f).setDuration(d).setInterpolator(Motion.emphasized).start()
+        carousel.animate().scaleX(geo.glanceScale).scaleY(geo.glanceScale).setDuration(d).setInterpolator(Motion.emphasized).start()
         host.setGlance(true)
     }
 
@@ -485,7 +591,7 @@ class NowPlayingScreen(host: MainActivity) : Screen(host) {
         if (!glance) return
         glance = false
         val d = Motion.ms(250)
-        listOf(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext).forEach {
+        listOfNotNull(labelTop, chip, seek, elapsed, remaining, shuffle, repeat, upNext, nextPanel).forEach {
             it.animate().alpha(1f).setDuration(d).start()
             it.isEnabled = true
         }

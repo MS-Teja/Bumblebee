@@ -23,6 +23,7 @@ import com.teja.bumblebee.storage.FolderRepo
 import com.teja.bumblebee.storage.Volumes
 import com.teja.bumblebee.ui.MainActivity
 import com.teja.bumblebee.ui.design.C
+import com.teja.bumblebee.ui.design.D
 import com.teja.bumblebee.ui.design.Fonts
 import com.teja.bumblebee.ui.design.MATCH
 import com.teja.bumblebee.ui.design.circle
@@ -74,15 +75,13 @@ class FolderScreen(
     private var firstFill = true
 
     override fun build(): View {
-        val root = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         hero = HeroPane(ctx)
         hero.title.text = displayName()
         ArtLoader.bindFolder(hero.art, dir.path, dir.name, ArtLoader.Size.LARGE, initialArt)
         hero.play.pressable { host.playFolder(dir, shuffle = false) }
         hero.shuffle.pressable { host.playFolder(dir, shuffle = true) }
-        root.addView(hero, linear(380.u, MATCH))
 
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(8.u, 26.u, 0, 0) }
+        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(if (hero.compact) 24.u else 8.u, if (hero.compact) 8.u else 26.u, 0, 0) }
         crumbs = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val crumbScroll = HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(crumbs) }
         col.addView(crumbScroll, linear(MATCH, 56.u, r = 30.u))
@@ -96,7 +95,7 @@ class FolderScreen(
         emptyHost = FrameLayout(ctx)
         listHost.addView(emptyHost, frame(MATCH, MATCH))
         col.addView(listHost, linear(MATCH, 0, 1f))
-        root.addView(col, linear(0, MATCH, 1f))
+        val root = heroLayout(ctx, hero, col)
 
         tracks = TrackAdapter(
             onPlay = { i -> playFrom(i) },
@@ -230,12 +229,15 @@ class FolderScreen(
                 ConcatAdapter.Config.Builder().setIsolateViewTypes(true).setStableIdMode(ConcatAdapter.Config.StableIdMode.ISOLATED_STABLE_IDS).build(),
                 listOf(folderHeader, folders!!, songHeader, tracks),
             )
-            val glm = GridLayoutManager(ctx, 3)
+            // Folder cards per row from the list's width (≈250px each), so any screen fills evenly.
+            val listW = D.contentW - (if (hero.compact) 24 else 380 + 8) - 30
+            val span = (listW / (if (big) 230 else 250)).coerceIn(2, 6)
+            val glm = GridLayoutManager(ctx, span)
             glm.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                 override fun getSpanSize(position: Int): Int {
                     val h = folderHeader.itemCount
                     val f = folders?.itemCount ?: 0
-                    return if (position >= h && position < h + f) 1 else 3
+                    return if (position >= h && position < h + f) 1 else span
                 }
             }
             list.layoutManager = glm

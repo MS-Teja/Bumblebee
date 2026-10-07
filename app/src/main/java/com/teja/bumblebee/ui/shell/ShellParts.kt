@@ -45,8 +45,11 @@ import kotlin.math.abs
 
 // ====================================================================== rail
 
-/** Driver-side navigation rail: small clock, four destinations with a sliding pill, settings and exit. */
-class Rail(ctx: Context, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLayout(ctx) {
+/**
+ * Navigation: a driver-side rail in landscape, a bottom bar in portrait. Small clock, four
+ * destinations with a spring-sliding pill, then settings and exit.
+ */
+class Rail(ctx: Context, private val horizontal: Boolean, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLayout(ctx) {
 
     private data class Item(val tab: Tab, val root: LinearLayout, val icon: ImageView, val label: TextView?)
 
@@ -57,16 +60,22 @@ class Rail(ctx: Context, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLay
     private var accent = C.BEE
     private val clock = ctx.text("", 18f, Fonts.semiBold, C.alpha(C.TEXT, 0.6f)).apply { gravity = Gravity.CENTER; fontFeatureSettings = "tnum" }
     private val handler = Handler(Looper.getMainLooper())
-    private val pillY = SpringAnimation(pill, DynamicAnimation.TRANSLATION_Y).apply { spring = SpringForce().setStiffness(520f).setDampingRatio(0.78f) }
+    private val pillMove = SpringAnimation(pill, if (horizontal) DynamicAnimation.TRANSLATION_X else DynamicAnimation.TRANSLATION_Y)
+        .apply { spring = SpringForce().setStiffness(520f).setDampingRatio(0.78f) }
+    private val strip = LinearLayout(ctx)
 
     init {
-        setBackgroundColor(0x09FFFFFF)
+        // The bottom bar sits over scrolling content, so it must be solid; the side rail can stay airy.
+        setBackgroundColor(if (horizontal) 0xFA0B0E12.toInt() else 0x09FFFFFF)
         val hair = View(ctx).apply { setBackgroundColor(C.HAIR) }
-        addView(hair, frame(1.u, MATCH, Gravity.START))
+        addView(hair, if (horizontal) frame(MATCH, 1.u, Gravity.TOP) else frame(1.u, MATCH, Gravity.START))
         pill.background = pillBg
-        addView(pill, frame(104.u, 88.u, l = 14.u))
-        val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(14.u, 22.u, 14.u, 18.u) }
-        col.addView(clock, linear(MATCH, WRAP, b = 22.u))
+        addView(pill, if (horizontal) frame(150.u, 88.u, Gravity.CENTER_VERTICAL) else frame(104.u, 88.u, l = 14.u))
+        strip.orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        strip.gravity = Gravity.CENTER
+        if (horizontal) strip.setPadding(24.u, 0, 16.u, 0) else strip.setPadding(14.u, 22.u, 14.u, 18.u)
+        strip.addView(clock, if (horizontal) linear(80.u, WRAP) else linear(MATCH, WRAP, b = 22.u))
+        if (horizontal) strip.addView(View(ctx), linear(0, MATCH, 1f))
         fun add(tab: Tab, @DrawableRes res: Int, title: String?) {
             val icon = ctx.icon(res, if (title != null) 30 else 28, C.alpha(C.TEXT, 0.78f))
             val label = title?.let { ctx.text(it, 14f, Fonts.bold, C.alpha(C.TEXT, 0.78f)).apply { gravity = Gravity.CENTER } }
@@ -79,13 +88,17 @@ class Rail(ctx: Context, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLay
                 contentDescription = title ?: tab.name.lowercase()
             }
             items += Item(tab, root, icon, label)
-            col.addView(root, linear(MATCH, if (title != null) 88.u else 64.u, b = 4.u))
+            val main = title != null
+            strip.addView(root, when {
+                horizontal -> linear(if (main) 150.u else 76.u, 88.u)
+                else -> linear(MATCH, if (main) 88.u else 64.u, b = 4.u)
+            })
         }
         add(Tab.NOW, R.drawable.ic_music, "Playing")
         add(Tab.HOME, R.drawable.ic_home, "Home")
         add(Tab.LIBRARY, R.drawable.ic_library, "Library")
         add(Tab.SEARCH, R.drawable.ic_search, "Search")
-        col.addView(View(ctx), linear(MATCH, 0, 1f))
+        strip.addView(View(ctx), if (horizontal) linear(0, MATCH, 1f) else linear(MATCH, 0, 1f))
         add(Tab.SETTINGS, R.drawable.ic_settings, null)
         val exit = ctx.icon(R.drawable.ic_exit, 28, C.alpha(C.TEXT, 0.6f))
         val exitBox = FrameLayout(ctx).apply {
@@ -93,8 +106,8 @@ class Rail(ctx: Context, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLay
             contentDescription = "Exit to launcher"
             pressable(0.9f) { onExit() }
         }
-        col.addView(exitBox, linear(MATCH, 64.u))
-        addView(col, frame(MATCH, MATCH))
+        strip.addView(exitBox, if (horizontal) linear(76.u, 88.u) else linear(MATCH, 64.u))
+        addView(strip, frame(MATCH, MATCH))
         tickClock()
     }
 
@@ -109,15 +122,15 @@ class Rail(ctx: Context, onSelect: (Tab) -> Unit, onExit: () -> Unit) : FrameLay
         val item = items.firstOrNull { it.tab == tab } ?: return
         selected = tab
         val place = {
-            val y = item.root.top + (item.root.parent as View).top + (item.root.height - pill.layoutParams.height) / 2f
-            pill.layoutParams.height = item.root.height
-            pill.requestLayout()
-            if (animate && pill.alpha > 0f) pillY.animateToFinalPosition(item.root.top + (item.root.parent as View).top.toFloat())
-            else pill.translationY = item.root.top + (item.root.parent as View).top.toFloat()
+            val lp = pill.layoutParams
+            if (horizontal) lp.width = item.root.width else lp.height = item.root.height
+            pill.layoutParams = lp
+            val target = (if (horizontal) item.root.left + strip.left else item.root.top + strip.top).toFloat()
+            if (animate && pill.alpha > 0f) pillMove.animateToFinalPosition(target)
+            else if (horizontal) pill.translationX = target else pill.translationY = target
             pill.alpha = 1f
-            y
         }
-        if (item.root.height == 0) post { place() } else place()
+        if (item.root.width == 0) post { place() } else place()
         tint()
     }
 

@@ -21,6 +21,10 @@ import com.teja.bumblebee.ui.design.WRAP
 import com.teja.bumblebee.ui.design.frame
 import com.teja.bumblebee.ui.design.linear
 import com.teja.bumblebee.ui.design.text
+import com.teja.bumblebee.ui.design.label
+import com.teja.bumblebee.ui.design.pressable
+import com.teja.bumblebee.ui.design.rounded
+import com.teja.bumblebee.ui.design.roundCorners
 import com.teja.bumblebee.ui.design.u
 import kotlin.math.abs
 import kotlin.math.max
@@ -302,3 +306,39 @@ class SwipeSurface(ctx: Context) : FrameLayout(ctx) {
 
 /** Clamp helper for colour/alpha math. */
 internal fun Float.clamp01() = min(1f, max(0f, this))
+
+/** Wide screens only: the next few songs beside the controls, so ultrawide panels have no dead margins. */
+class NextPanel(ctx: Context, private val onPick: (Int) -> Unit) : LinearLayout(ctx) {
+    private val rows = LinearLayout(ctx).apply { orientation = VERTICAL }
+
+    init {
+        orientation = VERTICAL
+        background = rounded(0x0DFFFFFF, 28)
+        setPadding(24.u, 22.u, 18.u, 12.u)
+        addView(ctx.label("Up next", C.TEXT3, 14f), linear(MATCH, WRAP, b = 8.u))
+        addView(rows, linear(MATCH, WRAP))
+    }
+
+    fun bind(entries: List<com.teja.bumblebee.playback.PlayerHub.QueueEntry>, maxRows: Int) {
+        rows.removeAllViews()
+        entries.take(maxRows).forEach { e ->
+            val art = android.widget.ImageView(context).apply {
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                roundCorners(12)
+            }
+            com.teja.bumblebee.art.ArtLoader.bind(art, e.track, com.teja.bumblebee.art.ArtLoader.Size.SMALL)
+            val row = LinearLayout(context).apply {
+                orientation = HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(art, linear(60.u, 60.u, r = 16.u))
+                addView(LinearLayout(context).apply {
+                    orientation = VERTICAL
+                    addView(context.text(e.track.title, 19f, Fonts.bold), linear(MATCH, WRAP))
+                    addView(context.text(e.track.artistLabel, 15f, Fonts.semiBold, C.alpha(C.TEXT, 0.55f)), linear(MATCH, WRAP, t = 3.u))
+                }, linear(0, WRAP, 1f))
+                pressable(0.97f) { onPick(e.index) }
+            }
+            rows.addView(row, linear(MATCH, 84.u))
+        }
+    }
+}
